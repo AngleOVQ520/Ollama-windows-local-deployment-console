@@ -1,0 +1,92 @@
+/* 生图页：创作区 / 参考图 / 结果 / 历史画廊 */
+.img-grid { display: grid; grid-template-columns: minmax(0, 1fr) 330px; gap: 16px; align-items: start; }
+@media (max-width: 1180px) { .img-grid { grid-template-columns: minmax(0, 1fr); } }
+
+.img-composer .card-title, .img-result .card-title { margin-bottom: 12px; }
+
+/* 参考图拖拽区 */
+.ref-zone { position: relative; border: 1px dashed var(--line-2); border-radius: 14px; padding: 14px; cursor: pointer;
+  background: var(--surface-2); transition: border-color var(--t), background var(--t), transform var(--t) var(--ease); }
+.ref-zone:hover { border-color: var(--text-3); }
+.ref-zone.over { border-color: var(--acc); background: rgba(var(--acc-rgb), .08); transform: scale(1.005); }
+.ref-empty { display: grid; place-items: center; gap: 4px; text-align: center; padding: 14px 6px; color: var(--text-2); }
+.ref-empty .ico { width: 30px; height: 30px; color: var(--acc); stroke-width: 1.4; margin-bottom: 4px; }
+.ref-empty b { color: var(--text); font-size: 13.5px; }
+.ref-empty span { font-size: 12px; color: var(--text-3); }
+.ref-empty.hidden { display: none; }
+.ref-list { display: flex; flex-wrap: wrap; gap: 10px; }
+.ref-item { position: relative; width: 108px; }
+.ref-item img { width: 108px; height: 108px; object-fit: cover; border-radius: 11px; border: 1px solid var(--line-2); display: block; background: var(--surface-3); }
+.ref-item .rm { position: absolute; top: 5px; right: 5px; width: 22px; height: 22px; border-radius: 50%; border: 0; cursor: pointer;
+  display: grid; place-items: center; background: rgba(0, 0, 0, .58); color: #fff; backdrop-filter: blur(4px); opacity: 0; transition: opacity var(--t-fast); }
+.ref-item:hover .rm { opacity: 1; }
+.ref-item .nm { display: block; margin-top: 4px; font-size: 10.5px; color: var(--text-3); }
+.img-prompt { min-height: 96px; }
+.img-neg { margin-top: 10px; }
+.img-neg summary { font-size: 12.5px; color: var(--text-2); cursor: pointer; padding: 4px 0; }
+.img-neg .textarea { margin-top: 8px; min-height: 58px; }
+
+/* 进度 */
+.img-progress { padding: 12px 14px; border: 1px solid var(--line); border-radius: 13px; background: var(--surface-2); margin-bottom: 14px; }
+.img-progress .bar i { background: linear-gradient(90deg, var(--acc), var(--acc-2)); transition: width .35s linear; }
+/* 加载模型阶段没有步数进度：用一条来回游走的光带表达"在忙" */
+.img-progress .bar.indet i { width: 32% !important; transition: none; animation: imgIndet 1.25s ease-in-out infinite; }
+@keyframes imgIndet { 0% { margin-left: -32%; } 100% { margin-left: 100%; } }
+.ip-head { display: flex; gap: 14px; align-items: flex-start; }
+.ip-preview { flex: none; display: grid; gap: 4px; justify-items: center; }
+.ip-preview img { width: 132px; height: 132px; object-fit: cover; border-radius: 10px; border: 1px solid var(--line-2); background: var(--surface-3); }
+.ip-preview span { font-size: 10.5px; color: var(--text-3); }
+.ip-preview.hidden { display: none; }
+
+/* 高级参数折叠 */
+.img-adv { margin-top: 12px; border-top: 1px dashed var(--line); padding-top: 10px; }
+.img-adv > summary { font-size: 12.5px; color: var(--text-2); cursor: pointer; padding: 2px 0; }
+.img-adv .pp-row { margin-top: 8px; }
+.i2i-only.hidden { display: none; }
+/* 宽高需要两个输入框，覆盖默认的 1fr/70px 栅格 */
+.img-params .pp-row-wide { grid-template-columns: 1fr auto; }
+.img-params .pp-row-wide .input { width: 78px; text-align: center; }
+
+/* 输出 */
+.img-empty { padding: 40px 10px; }
+.out-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px; }
+.out-item { position: relative; border: 1px solid var(--line); border-radius: 14px; overflow: hidden; background: var(--surface-2); }
+.out-item img { display: block; width: 100%; height: auto; cursor: zoom-in; transition: transform var(--t-slow) var(--ease); }
+.out-item:hover img { transform: scale(1.015); }
+.out-act { display: flex; gap: 8px; padding: 9px 10px; }
+.out-act .btn { flex: 1; justify-content: center; }
+.out-meta { display: block; padding: 0 10px 10px; font-size: 11px; color: var(--text-3); font-family: var(--mono); }
+
+/* 参数面板 */
+.size-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 8px; }
+.size-item { display: grid; gap: 2px; place-items: center; padding: 9px 4px; border-radius: 10px; cursor: pointer;
+  border: 1px solid var(--line); background: var(--surface-2); color: var(--text-2); transition: all var(--t-fast); }
+.size-item b { font-size: 12.5px; color: var(--text); }
+.size-item span { font-size: 10px; font-family: var(--mono); }
+.size-item:hover { border-color: var(--text-3); background: var(--surface-3); }
+.size-item.on { border-color: var(--acc); background: rgba(var(--acc-rgb), .1); color: var(--acc-2); }
+.size-item.on b { color: var(--acc-2); }
+
+/* 资产状态 */
+.asset-row { display: grid; grid-template-columns: 88px minmax(0, 1fr); gap: 10px; align-items: center; padding: 7px 0; border-bottom: 1px dashed var(--line); font-size: 12.5px; }
+.asset-row:last-of-type { border-bottom: 0; }
+.asset-row .lbl { color: var(--text-2); }
+.asset-row .mono { color: var(--text); }
+.asset-row.miss .mono { color: var(--err); }
+.asset-row.opt .mono { color: var(--text-3); }
+
+/* 历史画廊 */
+.img-gallery .empty { padding: 26px 10px; }
+.gal-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; }
+.gal-item { border: 1px solid var(--line); border-radius: 12px; overflow: hidden; cursor: pointer; background: var(--surface-2);
+  transition: transform var(--t) var(--ease), border-color var(--t); }
+.gal-item:hover { transform: translateY(-2px); border-color: var(--line-2); }
+.gal-item img { display: block; width: 100%; aspect-ratio: 1; object-fit: cover; }
+.gal-info { display: grid; gap: 2px; padding: 8px 9px; font-size: 11px; color: var(--text-2); }
+.gal-info span { display: block; }
+
+@media (max-width: 640px) {
+  .size-grid { grid-template-columns: repeat(2, 1fr); }
+  .ref-item, .ref-item img { width: 84px; }
+  .ref-item img { height: 84px; }
+}

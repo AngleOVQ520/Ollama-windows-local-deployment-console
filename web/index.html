@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="dark" data-accent="emerald">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Ollama 控制台</title>
+  <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+  <script>
+    // 启动入口注入的默认语言（app-en.py → en）；「跟随启动器」与首帧文案都读它
+    window.__LANG = "__LANG__";
+    if (window.__LANG === "en") document.documentElement.setAttribute("lang", "en");
+  </script>
+  <script>
+    // 首帧就套用上次的主题/配色（缓存自后端数据库里的设置），避免启动时先闪一下深色
+    try {
+      var c = JSON.parse(localStorage.getItem("ui-cache") || "{}"), d = document.documentElement;
+      var t = c.theme === "auto" ? (matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark") : c.theme;
+      if (t) d.dataset.theme = t;
+      if (c.accent) d.dataset.accent = c.accent;
+      if (c.animations === false) d.dataset.anim = "off";
+      if (c.font_size) d.style.setProperty("--fs", c.font_size + "px");
+      if (c.anim_speed) d.style.setProperty("--speed", String(1 / Math.max(0.3, c.anim_speed)));
+      if (c.msg_width) d.style.setProperty("--msg-w", c.msg_width + "px");
+      window.__uiCache = c;
+    } catch (e) {}
+  </script>
+  <link rel="stylesheet" href="/static/vendor/katex/katex.min.css">
+  <link rel="stylesheet" id="hljs-theme" href="/static/vendor/hljs/styles/github-dark.min.css">
+  <script>
+    if (window.__uiCache && window.__uiCache.theme === "light")
+      document.getElementById("hljs-theme").setAttribute("href", "/static/vendor/hljs/styles/github.min.css");
+  </script>
+  <link rel="stylesheet" href="/static/css/base.css">
+  <link rel="stylesheet" href="/static/css/layout.css">
+  <link rel="stylesheet" href="/static/css/chat.css">
+  <link rel="stylesheet" href="/static/css/pages.css">
+  <link rel="stylesheet" href="/static/css/image.css">
+  <script src="/static/vendor/marked/marked.umd.js"></script>
+  <script src="/static/vendor/dompurify/purify.min.js"></script>
+  <script src="/static/vendor/katex/katex.min.js"></script>
+  <script src="/static/vendor/katex/contrib/mhchem.min.js"></script>
+  <script src="/static/vendor/hljs/highlight.min.js"></script>
+  <script src="/static/vendor/hljs/languages-extra.min.js"></script>
+  <script src="/static/vendor/echarts/echarts.min.js"></script>
+  <script src="/static/vendor/mermaid/mermaid.min.js" defer></script>
+</head>
+<body>
+  <div class="boot"><div class="boot-inner">
+    <div class="boot-logo"><svg class="ico" viewBox="0 0 24 24"><path d="M12 2 3 7v10l9 5 9-5V7l-9-5Z"/><path d="m12 22V12M3 7l9 5 9-5"/><circle cx="12" cy="12" r="2.2" fill="currentColor"/></svg></div>
+    <div class="boot-text">正在连接本地引擎…</div>
+  </div></div>
+  <script>
+    // 启动遮罩在模块加载前就已可见，这里直接按注入语言替换，避免先闪一下中文
+    if (window.__LANG === "en") document.querySelector(".boot-text").textContent = "Connecting to the local engine…";
+  </script>
+  <div id="app"></div>
+  <script type="module" src="/static/js/app.js?v=1.0.2"></script>
+</body>
+</html>

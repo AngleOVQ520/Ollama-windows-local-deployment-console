@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><title>probe</title></head>
+<body>
+<div id="out">pending</div>
+<script>
+// 临时诊断页：在 iframe 里加载真实应用，采集 Edge 下的初始化与点击行为
+const log = [];
+const rec = (s) => { log.push(s); document.getElementById("out").textContent = log.join(" || "); };
+window.addEventListener("error", (e) => rec("WINDOW-ERROR: " + e.message));
+window.addEventListener("unhandledrejection", (e) => rec("UNHANDLED-REJECT: " + (e.reason && e.reason.message || e.reason)));
+
+const f = document.createElement("iframe");
+f.style.cssText = "width:1000px;height:700px;border:0";
+f.src = "/";
+document.body.appendChild(f);
+
+f.addEventListener("load", () => {
+  rec("iframe load event");
+  const w = f.contentWindow, d = f.contentDocument;
+  w.addEventListener("error", (e) => rec("IFRAME-ERROR: " + e.message));
+  w.addEventListener("unhandledrejection", (e) => rec("IFRAME-REJECT: " + (e.reason && e.reason.message || e.reason)));
+  const origErr = w.console.error;
+  w.console.error = function (...a) { rec("CONSOLE-ERROR: " + a.join(" ")); origErr.apply(w.console, a); };
+
+  setTimeout(() => {
+    rec("boot-text=" + (d.querySelector(".boot-text") || {}).textContent);
+    rec("boot removed=" + !d.querySelector(".boot"));
+    const app = d.getElementById("app");
+    rec("app children=" + (app ? app.children.length : "no-app"));
+    rec("nav links=" + d.querySelectorAll(".nav-tabs a").length);
+    rec("title=" + d.title);
+    rec("views with content=" + [...d.querySelectorAll(".view")].filter(v => v.children.length).length);
+
+    const a = d.querySelector('.nav-tabs a[data-r="stats"]');
+    if (!a) { rec("NO NAV LINK"); return; }
+    rec("clicking nav...");
+    a.click();
+    setTimeout(() => {
+      rec("hash=" + w.location.hash);
+      rec("view.on=" + [...d.querySelectorAll(".view.on")].map(v => v.dataset.view).join(","));
+      rec("DONE");
+    }, 1200);
+  }, 2500);
+});
+</script>
+</body>
+</html>

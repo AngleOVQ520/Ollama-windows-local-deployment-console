@@ -1,0 +1,111 @@
+// 英文词表：pages/chat_pops.js（模型选择 / 上下文 / 参数 / 深度思考 浮窗）
+export default {
+  dict: {
+    // 深度思考档位（THINK_META 的 name / desc）
+    "关闭": "Off",
+    "直接回答，最快": "Answer directly, fastest",
+    "极简思考": "Minimal",
+    "轻度思考": "Light thinking",
+    "均衡": "Balanced",
+    "深入推理": "Deep reasoning",
+    "更深入": "Deeper",
+    "大量推理": "Heavy reasoning",
+    "不设上限": "No limit",
+
+    // 模型能力标签提示（CAP_ICON 的 data-tip）
+    "视觉": "Vision",
+    "工具调用": "Tool Use",
+    "思考": "Thinking",
+    "向量": "Embedding",
+
+    // 模型切换浮窗
+    "搜索模型 / 分区 / 类别…": "Search models / partitions / categories…",
+    "添加模型": "Add Model",
+    "模型列表": "Model List",
+    "卸载当前": "Unload Current",
+    "该模型 GGUF 内含 MTP/NextN 推测解码头，可在「参数」中开关加速": "This model's GGUF contains an MTP/NextN speculative decoding head; toggle acceleration in Params",
+    "已加载": "Loaded",
+    "加载中": "Loading",
+    "没有匹配的模型": "No matching models",
+    "还没有模型": "No models yet",
+    "去添加": "Add One",
+
+    // 上下文控制浮窗
+    "上下文控制": "Context Control",
+    "未知上限": "Unknown limit",
+    "上下文窗口 num_ctx": "Context Window num_ctx",
+    "模型一次能看到的总 token 数（输入 + 输出），越大越占显存": "Total tokens the model can see at once (input + output); larger values use more VRAM",
+    "最大输入 tokens": "Max Input tokens",
+    "发送前按此限制裁剪较早的历史消息，0 表示不限制": "Trim earlier history messages to this limit before sending; 0 means no limit",
+    "最大输出 tokens": "Max Output tokens",
+    "num_predict：单次回复的最大长度（包含思考），0 表示不限制": "num_predict: max length of a single reply (including thinking); 0 means no limit",
+    "保留历史轮数": "Kept History Turns",
+    "只携带最近 N 轮对话，0 表示全部": "Only carry the most recent N turns; 0 means all",
+    "上下文窗口变更将在下次发送时自动重新加载模型": "Context window changes automatically reload the model on the next send",
+
+    // 模型参数浮窗（分组名 / 参数名 / 说明）
+    "采样": "Sampling",
+    "Temperature 温度": "Temperature",
+    "越高越随机、越有创意；越低越确定": "Higher is more random and creative; lower is more deterministic",
+    "核采样：只在累计概率前 P 的词中采样": "Nucleus sampling: sample only from tokens within the top P cumulative probability",
+    "只在概率最高的 K 个词中采样，0 = 不限": "Sample only from the K most probable tokens; 0 = unlimited",
+    "过滤概率低于 (最高概率 × min_p) 的词": "Filter out tokens with probability below (highest probability × min_p)",
+    "局部典型性采样，1 = 关闭": "Locally typical sampling; 1 = off",
+    "惩罚": "Penalty",
+    "重复惩罚": "Repeat Penalty",
+    "抑制重复内容，1 = 不惩罚": "Suppress repetitive content; 1 = no penalty",
+    "重复检测窗口": "Repeat Detection Window",
+    "回看多少 token 判断重复，-1 = 整个上下文": "How many tokens to look back to detect repetition; -1 = entire context",
+    "存在惩罚": "Presence Penalty",
+    "出现过的词降低概率，鼓励新话题": "Lower the probability of seen tokens to encourage new topics",
+    "频率惩罚": "Frequency Penalty",
+    "按出现次数降低概率": "Lower probability by occurrence count",
+    "Mirostat 模式": "Mirostat Mode",
+    "0 关闭 / 1 Mirostat / 2 Mirostat 2.0": "0 off / 1 Mirostat / 2 Mirostat 2.0",
+    "目标困惑度，越低越聚焦": "Target perplexity; lower is more focused",
+    "学习率": "Learning rate",
+    "性能": "Performance",
+    "CPU 线程数": "CPU Threads",
+    "0 = 自动": "0 = auto",
+    "批大小 num_batch": "Batch Size num_batch",
+    "提示词处理批大小": "Prompt processing batch size",
+    "GPU 层数": "GPU Layers",
+    "-1 = 自动；0 = 纯 CPU（修改后重新加载生效）": "-1 = auto; 0 = pure CPU (takes effect after reload)",
+    "精确": "Precise",
+    "创意": "Creative",
+    "代码": "Code",
+    "模型参数": "Model Parameters",
+    "恢复默认": "Restore Defaults",
+    "使用模型自带默认参数（忽略下方采样设置）": "Use the model's built-in default parameters (ignore the sampling settings below)",
+    "MTP 推测解码加速": "MTP Speculative Decoding Acceleration",
+    "已开启 MTP，正在重新加载模型…": "MTP enabled, reloading model…",
+    "已关闭 MTP，正在重新加载模型…": "MTP disabled, reloading model…",
+    "其他": "Other",
+    "随机种子 seed": "Random seed",
+    "固定种子可复现输出，-1 为随机": "A fixed seed makes output reproducible; -1 is random",
+    "停止词（逗号分隔）": "Stop Words (comma-separated)",
+    "例如：<|end|>,###": "e.g. <|end|>,###",
+
+    // 深度思考浮窗
+    "深度思考强度": "Thinking Intensity",
+    "当前模型不支持思考模式，设置将被忽略": "The current model does not support thinking mode; settings will be ignored",
+    "预算 = 最多思考的 token 数，达到后自动收尾并输出答案。可在 设置 → 思考 中调整。": "Budget = max thinking tokens; once reached it wraps up and outputs the answer. Adjust under Settings → Thinking.",
+
+    // 含变量的文案（模板字符串占位形式，实际替换见 rules）
+    "模型上限 {}": "Model limit {}",
+    "当前已加载：{}": "Currently loaded: {}",
+    "MTP {} 张量{}": "MTP {} tensors{}",
+    "该模型内含 {} 个 MTP 张量{}。开启后引擎以 draft-mtp 模式生成；关闭则按普通模式。切换会重新加载模型。": "This model contains {} MTP tensors{}. When enabled the engine generates in draft-mtp mode; otherwise normal mode. Toggling reloads the model.",
+  },
+  rules: [
+    // 上下文上限 / 当前加载量
+    [/^模型上限 (.+)$/, "Model limit $1"],
+    [/^当前已加载：(.+)$/, "Currently loaded: $1"],
+    // 模型列表里的 MTP 张量摘要：MTP 12 张量 · 8 层 / MTP 12 张量
+    [/^MTP (\d+) 张量 · (\d+) 层$/, "MTP $1 tensors · $2 layers"],
+    [/^MTP (\d+) 张量$/, "MTP $1 tensors"],
+    // 参数浮窗里的 MTP 说明（有 / 无层数两种形态）
+    [/^该模型内含 (\d+) 个 MTP 张量 · (\d+) 层。开启后引擎以 draft-mtp 模式生成；关闭则按普通模式。切换会重新加载模型。$/, "This model contains $1 MTP tensors · $2 layers. When enabled the engine generates in draft-mtp mode; otherwise normal mode. Toggling reloads the model."],
+    [/^该模型内含 (\d+) 个 MTP 张量。开启后引擎以 draft-mtp 模式生成；关闭则按普通模式。切换会重新加载模型。$/, "This model contains $1 MTP tensors. When enabled the engine generates in draft-mtp mode; otherwise normal mode. Toggling reloads the model."],
+  ],
+};

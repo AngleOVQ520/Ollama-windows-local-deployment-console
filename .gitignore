@@ -1,0 +1,48 @@
+# ============================================================
+# 本机私有 / 运行时内容：不入库
+# ============================================================
+
+# --- 数据库与用户数据（app.db 含对话记录、API Key、用量统计）---
+data/
+*.db
+*.db-shm
+*.db-wal
+settings.json
+
+# --- 运行时目录：项目内 Python 依赖、日志、缓存、临时文件、隔离的 Ollama 环境、SD 可执行文件 ---
+runtime/
+
+# --- 模型库与权重（体积巨大，且多受分发许可限制）---
+models/
+*.gguf
+*.safetensors
+*.ckpt
+*.pt
+*.pth
+*.onnx
+*.bin
+
+# --- Python 缓存 ---
+__pycache__/
+*.py[cod]
+*$py.class
+
+# --- IDE 缓存、编辑器配置与共享产物 ---
+.trae/
+.trae-html-share-packages/
+.vscode/
+.idea/
+*.swp
+
+# --- 密钥与凭据（严禁入库）---
+GitHub key全权限.txt
+*.pem
+*.key
+id_ed25519
+id_ed25519.pub
+
+# --- 已废弃的本地暂存目录（内容已并入项目根目录）---
+GitHub提交文件夹/
+
+# --- 日志 ---
+*.log
