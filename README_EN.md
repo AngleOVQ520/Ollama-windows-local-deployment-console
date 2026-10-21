@@ -9,7 +9,7 @@
 > and you can start using a model truly deployed locally! And complete any task (depending on your model).
 
 Two interface languages are supported: **中文** (`app-cn.py`) and **English** (`app-en.py`), switchable at any time in Settings.
-
+Get started directly - [Quick Start](#quick-start)
 ---
 
 ## Table of Contents
