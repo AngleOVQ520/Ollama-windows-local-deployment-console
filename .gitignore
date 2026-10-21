@@ -8,6 +8,8 @@ runtime/*
 !runtime/.gitkeep
 models/*
 !models/.gitkeep
+Git Data/*
+!Git Data/.gitkeep
 *.gguf
 *.safetensors
 *.ckpt
