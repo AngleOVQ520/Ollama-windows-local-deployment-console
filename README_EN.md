@@ -2,6 +2,8 @@
 
 # Ollama Console
 
+![Ollama Console interface preview](screenshots/English.png)
+
 > Anyone can deploy local models faster — including manually importing GGUF files.
 > Use Ollama faster and more conveniently, without learning more command-line flags — truly ready out of the box.
 > An all-in-one console for local large language models: chat, partitioned model management, image generation, usage analytics and full parameter tuning — all running on your own machine.
