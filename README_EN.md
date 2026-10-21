@@ -4,10 +4,9 @@
 
 ![Ollama Console interface preview](screenshots/English.png)
 
-> Anyone can deploy local models faster — including manually importing GGUF files.
-> Use Ollama faster and more conveniently, without learning more command-line flags — truly ready out of the box.
-> An all-in-one console for local large language models: chat, partitioned model management, image generation, usage analytics and full parameter tuning — all running on your own machine.
-> No online account and no cloud service; dependencies, database, logs and cache all stay inside the project folder.
+> Enable everyone to deploy local models faster (including manually importing GGUF).
+> Achieve true out-of-the-box usability, with almost zero learning cost and no need to configure complex parameters—just finish reading this README.md,!
+> and you can start using a model truly deployed locally! And complete any task (depending on your model).
 
 Two interface languages are supported: **中文** (`app-cn.py`) and **English** (`app-en.py`), switchable at any time in Settings.
 
