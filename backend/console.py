@@ -56,6 +56,9 @@ class Dashboard:
         self.url = url
         self.console = Console(highlight=False)
         self.frame = 0
+        # 用量聚合结果缓存：(写入时间戳, 今日字典, 累计字典)；TTL 内直接复用，避免每帧两次全表聚合
+        self._usage_cache = (0.0, {}, {})
+        self._usage_ttl = 1.5
 
     # ---------------- 开机动画 ----------------
     def splash(self):
@@ -156,11 +159,15 @@ class Dashboard:
         return Panel(Group(t, foot), title="[bold]⛁ %s[/]" % T("引擎"), border_style="#1f3a3a", box=box.ROUNDED)
 
     def _usage(self):
-        try:
-            o = self.ctx.usage._summary(self.ctx.usage._since(1))
-            a = self.ctx.usage._summary(0)
-        except Exception:
-            o = a = {}
+        ts, o, a = self._usage_cache
+        if time.time() - ts >= self._usage_ttl:
+            # 重新查询；异常时也写回空字典与当前时间，避免数据库被锁时退化成每帧重试
+            try:
+                o = self.ctx.usage._summary(self.ctx.usage._since(1))
+                a = self.ctx.usage._summary(0)
+            except Exception:
+                o = a = {}
+            self._usage_cache = (time.time(), o, a)
         t = Table.grid(padding=(0, 2), expand=True)
         for _ in range(4):
             t.add_column()
@@ -384,8 +391,11 @@ class ConsoleUI:
             time.sleep(0.02)
         with self.lock:
             self.mode = "dash"
-        if self.live:  # 进入仪表盘后不需要 25fps，降低刷新以省 CPU
-            self.live.refresh_per_second = 4
+        if self.live:  # 进入仪表盘后改由主循环手动刷新；停掉 rich 的刷新线程（stop() 仅 set Event，线程自然退出）
+            th = getattr(self.live, "_refresh_thread", None)
+            if th is not None:
+                th.stop()
+                self.live._refresh_thread = None
         return True
 
     def attach_dashboard(self, dash):
@@ -403,6 +413,11 @@ class ConsoleUI:
             return
         while not stop_evt.is_set():
             stop_evt.wait(0.25)
+            if self.mode == "dash" and self.live:
+                try:
+                    self.live.refresh()
+                except Exception:
+                    pass
 
     def close(self):
         if self.live:
