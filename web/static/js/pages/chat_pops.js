@@ -102,10 +102,12 @@ export function openContextPop(anchor, onChange) {
   const m = ld.model ? findModel(ld.partition_id, ld.model) : null;
   const modelMax = m?.context_length || 0;
   // 上限取模型声明的上下文（不超过 1M）；模型未知时才回退到 128K
-  const maxCtx = ctxLimit(ld.partition_id, ld.model);
+  // 声明为 let：浮窗打开期间切换模型时 syncRange 会更新上限
+  let maxCtx = ctxLimit(ld.partition_id, ld.model);
   const box = h(`<div class="pp"><div class="pop-title">${icon("layers")}上下文控制<span class="tag" style="margin-left:auto">${modelMax ? "模型上限 " + fmtCtx(modelMax) : "未知上限"}</span></div></div>`);
   const presets = h(`<div class="row wrap" style="gap:5px;margin-bottom:12px"></div>`);
-  [2048, 4096, 8192, 16384, 32768, 65536, 131072].filter((v) => !modelMax || v <= modelMax).forEach((v) => {
+  // 预设档位与输入框同一上限：不足 128K 的模型不能给出超过声明值的档位
+  [2048, 4096, 8192, 16384, 32768, 65536, 131072].filter((v) => v <= maxCtx).forEach((v) => {
     const b = h(`<button class="chip">${fmtCtx(v)}</button>`);
     b.onclick = () => { ctxRow.setValue(v); set({ num_ctx: v }); };
     presets.appendChild(b);
@@ -115,7 +117,9 @@ export function openContextPop(anchor, onChange) {
     onChange?.();
     // c 是浮窗打开时的快照，需同步本地，后续比较才准确
     Object.assign(c, patch);
-    if (patch.num_ctx) $(".warn-ctx", box).classList.toggle("hidden", !(ld.status === "loaded" && ld.num_ctx !== c.num_ctx));
+    // 钳制逻辑在 append 之前就会调用 set()，此时提示元素还不存在，需判空
+    const warnEl = $(".warn-ctx", box);
+    if (patch.num_ctx && warnEl) warnEl.classList.toggle("hidden", !(ld.status === "loaded" && ld.num_ctx !== c.num_ctx));
   };
   const ctxRow = numRow({ label: "上下文窗口 num_ctx", tip: "模型一次能看到的总 token 数（输入 + 输出），越大越占显存", min: 512, max: maxCtx, step: 512, value: c.num_ctx, onChange: (v) => set({ num_ctx: v }), fmt: fmtCtx });
   const inRow = numRow({ label: "最大输入 tokens", tip: "发送前按此限制裁剪较早的历史消息，0 表示不限制", min: 0, max: maxCtx, step: 256, value: c.max_input, onChange: (v) => set({ max_input: v }) });

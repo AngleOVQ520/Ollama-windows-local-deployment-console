@@ -311,7 +311,7 @@ The front end is **vanilla ES modules with no build step** — just refresh afte
 ## Version
 
 Version history and per-change details are in [CHANGELOG.md](CHANGELOG.md).
-Current version: v1.1.31 — 22 defects fixed (model sync, GGUF import, API auth, chat parameters, image generation and stats).
+Current version: v1.1.31b — 22 defects fixed (model sync, GGUF import, API auth, chat parameters, image generation and stats), plus a follow-up fix for the context popover failing to open and out-of-range presets on small-context models.
 
 ---
 
