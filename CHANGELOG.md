@@ -4,6 +4,16 @@
 
 ---
 
+## v1.1.9 (2026-10-22)
+
+### 修复
+- web/static/js/pages/settings.js — 设置页监听器随渲染注销，不再累积
+- backend/services/chat.py — 删除会话后不再写回孤儿消息；历史图片只带最近两轮
+- web/static/js/pages/chat.js — 删除后收尾提示；图片入库前压缩到长边1568
+- web/static/js/i18n/en.chat.js — 补充会话已删除提示英文词条
+- backend/__init__.py — 版本号对齐并升至 1.1.9
+- CHANGELOG.md — 记录本次修复
+
 ## v1.1.6 (2026-10-22)
 
 **缺陷修复：全局同步不再拉起空 / 离线分区的引擎；后台初始化（boot）增加异常兜底并向前端提示失败原因；思考预算与思考统计由「流式块数」改为按 token 估算。**

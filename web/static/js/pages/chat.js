@@ -291,11 +291,44 @@ function updSend() {
 
 // ---------------- 附件 ----------------
 const TEXT_EXT = /\.(txt|md|py|js|ts|json|csv|html?|css|xml|ya?ml|log|java|c|cpp|h|hpp|go|rs|sql|sh|ps1|ini|toml|vue|jsx|tsx|bat|cfg|conf|kt|swift|rb|php|lua|r|tex)$/i;
+// 图片入库前压缩：长边上限、JPEG 质量，以及低于该体积且不超大时保持原图
+const IMG_MAX_SIDE = 1568;
+const IMG_QUALITY = 0.85;
+const IMG_KEEP_BYTES = 400 * 1024;
+
+function readAsDataURL(blob) {
+  return new Promise((res) => { const r = new FileReader(); r.onload = () => res(r.result); r.readAsDataURL(blob); });
+}
+
+async function shrinkImage(file) {
+  // gif / svg 不重编码（会丢帧或丢矢量）
+  if (file.type === "image/gif" || file.type === "image/svg+xml") return readAsDataURL(file);
+  let bmp;
+  try { bmp = await createImageBitmap(file, { imageOrientation: "from-image" }); }
+  catch { return readAsDataURL(file); }          // 浏览器解不了就退回原图
+  const longSide = Math.max(bmp.width, bmp.height);
+  if (file.size <= IMG_KEEP_BYTES && longSide <= IMG_MAX_SIDE) {
+    bmp.close?.();
+    return readAsDataURL(file);                  // 小图不动，避免无谓的有损重编码
+  }
+  const scale = Math.min(1, IMG_MAX_SIDE / longSide);
+  const w = Math.max(1, Math.round(bmp.width * scale));
+  const h = Math.max(1, Math.round(bmp.height * scale));
+  const cv = document.createElement("canvas");
+  cv.width = w; cv.height = h;
+  const ctx = cv.getContext("2d");
+  ctx.fillStyle = "#fff";                        // 透明区域填白，避免 JPEG 变黑
+  ctx.fillRect(0, 0, w, h);
+  ctx.drawImage(bmp, 0, 0, w, h);
+  bmp.close?.();
+  const blob = await new Promise((res) => cv.toBlob(res, "image/jpeg", IMG_QUALITY));
+  return blob ? readAsDataURL(blob) : readAsDataURL(file);
+}
 async function addFiles(files) {
   for (const f of files) {
     if (f.type.startsWith("image/")) {
       if (f.size > 20 * 1024 * 1024) { toast(`${f.name} 超过 20MB`, "warn"); continue; }
-      const data = await new Promise((res) => { const r = new FileReader(); r.onload = () => res(r.result); r.readAsDataURL(f); });
+      const data = await shrinkImage(f);
       S.attach.push({ type: "image", name: f.name, data });
     } else if (TEXT_EXT.test(f.name) || f.type.startsWith("text/")) {
       if (f.size > 2 * 1024 * 1024) { toast(`${f.name} 超过 2MB`, "warn"); continue; }
@@ -669,6 +702,13 @@ function attachRun(runId, resumed) {
       clearTimeout(S.renderTimer);
       S.renderTimer = null;
       if (S.cur !== convId) { S.streaming = false; updSend(); loadConvs(); return; }
+      if (d.message_id == null) {
+        // 会话在生成过程中被删除：后端不再落库，这里收尾并提示，避免留空白气泡
+        el.remove();
+        S.streaming = false; updSend(); loadConvs();
+        toast("会话已删除，本次回复未保存", "warn", 5000);
+        return;
+      }
       const msg = { id: d.message_id, role: "assistant", content, thinking, model: d.stats.model, stats: d.stats, status: d.status, created_at: Date.now() / 1000 };
       S.conv.messages.push(msg);
       const final = msgEl(msg);

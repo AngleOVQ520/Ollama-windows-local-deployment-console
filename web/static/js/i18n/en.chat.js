@@ -130,6 +130,7 @@ export default {
     // 会话相关提示
     "{n} 个对话": "{n} chats",
     "已删除 {n} 个对话": "Deleted {n} chats",
+    "会话已删除，本次回复未保存": "The chat was deleted; this reply was not saved",
     "此对话使用 {model}，可在左下角切换": "This chat uses {model}; switch it from the bottom left",
   },
   rules: [

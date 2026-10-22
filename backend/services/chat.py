@@ -19,6 +19,9 @@ from ..i18n import T
 
 BUDGET_NOTE = "\n\n（思考预算已用尽，现在根据以上思考直接给出最终答案。）\n"
 
+# 只把最近 N 轮用户消息里的图片带进上下文，避免历史图片随轮数线性推高 prompt tokens 与显存
+HISTORY_IMAGE_TURNS = 2
+
 
 def est_tokens(text):
     """粗略估算 token：CJK 每字约 1 token，其余约 4 字符 1 token。"""
@@ -176,7 +179,8 @@ class ChatService:
         self.bus.publish("convs_changed", {"id": cid})
 
     def delete_all(self, keep_pinned=True):
-        for r in self.active.values():
+        # 快照遍历：_generate 的 finally 会并发 pop self.active，直接迭代会抛 size changed
+        for r in list(self.active.values()):
             r.stop()
         where = " WHERE pinned=0" if keep_pinned else ""
         ids = [r["id"] for r in self.db.query("SELECT id FROM conversations" + where)]
@@ -282,8 +286,10 @@ class ChatService:
         sys_prompt = (conv.get("system_prompt") or "").strip() or (self.config.get("chat.system_prompt") or "").strip()
         rows = self.db.query("SELECT * FROM messages WHERE conv_id=? AND id<=? ORDER BY id", (conv["id"], run.user_msg_id))
         has_vision = "vision" in (m.get("capabilities") or [])
+        user_idx = [i for i, r in enumerate(rows) if r["role"] == "user"]
+        recent_img_rows = set(user_idx[-HISTORY_IMAGE_TURNS:])
         msgs = []
-        for r in rows:
+        for i, r in enumerate(rows):
             if r["role"] not in ("user", "assistant") or r["status"] == "error":
                 continue
             content = r["content"] or ""
@@ -292,8 +298,8 @@ class ChatService:
                     content += "\n\n<file name=\"%s\">\n%s\n</file>" % (f.get("name", "file"), f.get("text", ""))
             item = {"role": r["role"], "content": content}
             imgs = jloads(r["images_json"], [])
-            if imgs and has_vision:
-                item["images"] = [i.split(",", 1)[-1] for i in imgs]
+            if imgs and has_vision and i in recent_img_rows:
+                item["images"] = [i2.split(",", 1)[-1] for i2 in imgs]
             msgs.append(item)
         # 历史轮数限制
         turns = int(ctx.get("history_turns") or 0)
@@ -537,11 +543,16 @@ class ChatService:
             if status == "error" and not content:
                 content = ""
             stats["error"] = err
-            aid = self.db.insert("messages", {"conv_id": run.conv_id, "role": "assistant", "content": content,
-                                              "thinking": thinking, "images_json": "[]", "files_json": "[]",
-                                              "model": m["name"], "stats_json": jdumps(stats), "status": status,
-                                              "created_at": time.time()})
-            self.db.update("conversations", run.conv_id, {"updated_at": time.time()})
+            # 会话可能在生成过程中被删除：此时不再写回孤儿 assistant 消息
+            conv_exists = self.db.scalar("SELECT 1 FROM conversations WHERE id=?", (run.conv_id,))
+            if conv_exists:
+                aid = self.db.insert("messages", {"conv_id": run.conv_id, "role": "assistant", "content": content,
+                                                  "thinking": thinking, "images_json": "[]", "files_json": "[]",
+                                                  "model": m["name"], "stats_json": jdumps(stats), "status": status,
+                                                  "created_at": time.time()})
+                self.db.update("conversations", run.conv_id, {"updated_at": time.time()})
+            else:
+                aid = None
             if status != "error" and stats["output_tokens"]:
                 self.usage.record(stats, conv_id=run.conv_id, source="chat", status=status)
             elif status == "error":

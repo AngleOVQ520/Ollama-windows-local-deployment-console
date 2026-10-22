@@ -14,6 +14,7 @@ const SECTIONS = [
 const ACCENTS = [["emerald", "#10b981", "翡翠"], ["teal", "#14b8a6", "青碧"], ["coral", "#f4715e", "珊瑚"], ["lime", "#84cc16", "青柠"], ["rose", "#f43f5e", "玫红"], ["graphite", "#a1a1aa", "石墨"]];
 
 let root, savePill, saveTimer;
+let disposers = [];
 const S = { lastSig: "" };
 
 export function mount(r) {
@@ -112,6 +113,9 @@ function resetBtn(sec) {
 
 // ---------- 渲染 ----------
 function render() {
+  // 注销上一轮注册的全局监听器，避免每次渲染都累积一份（闭包还持有已被清空的旧 DOM）
+  disposers.forEach((fn) => { try { fn(); } catch { /* ignore */ } });
+  disposers = [];
   const body = $(".set-body", root);
   const y = $("[data-scroll]", root).scrollTop;
   body.innerHTML = "";
@@ -205,7 +209,7 @@ function secEngine() {
       ${store.engines.map((e) => `<tr><td>${esc(e.name)}</td><td class="mono">${e.port || "—"}</td><td><span class="row" style="gap:6px"><i class="dot ${e.status === "running" ? "ok" : e.status === "starting" ? "warn" : e.status === "error" ? "err" : ""}"></i>${esc(e.status)}</span>${e.error ? `<div class="hint" style="color:var(--err)">${esc(e.error)}</div>` : ""}</td><td class="mono">${e.pid || "—"}</td><td class="mono">${esc(e.version || "—")}</td><td class="mono">${e.uptime ? fmtMs(e.uptime * 1000) : "—"}</td><td class="mono dim ellipsis" style="max-width:280px">${esc(e.models_dir)}</td></tr>`).join("")}</tbody></table></div>` : `<div class="hint">暂无运行中的引擎</div>`;
   };
   drawEng();
-  on("engines", drawEng);
+  disposers.push(on("engines", drawEng));
   return section("engine", "cpu", "Ollama 引擎", "修改以下选项会自动重启所有分区引擎（当前加载的模型会被卸载）。",
     row("ollama.exe 路径", `当前：${esc(store.app.ollama || "未找到")}`, pathRow),
     row("引擎起始端口", "分区引擎端口 = 起始端口 + 分区 ID（被占用时自动顺延）", num("engine.base_port", { min: 1024, max: 65000 })),
@@ -279,7 +283,10 @@ function secApi() {
     $("[data-rs]", status).onclick = async () => { await post("/api/api-server/restart"); drawSt(); toast("API 服务已重启", "ok"); };
   };
   drawSt();
-  on("settings_saved", () => setTimeout(drawSt, 500));
+  disposers.push(on("settings_saved", () => {
+    if (!root?.closest(".view.on")) return;
+    setTimeout(drawSt, 500);
+  }));
   const keyRow = h(`<div class="row"></div>`);
   const kin = txt("api.api_key", { cls: "w-l mono", placeholder: "未设置", type: "password" });
   const show = h(`<button class="btn sm icon" data-tip="显示/隐藏">${icon("eye", "sm")}</button>`);
@@ -389,13 +396,13 @@ function secLogs() {
   const lb = $(".log-box", box);
   const line = (r) => `<div class="l-${r.level}"><span class="l-t">${fmtTime(r.ts, false)} [${esc(r.source)}]</span> ${esc(r.msg)}</div>`;
   get("/api/logs?n=300").then((rows) => { lb.innerHTML = rows.map(line).join(""); lb.scrollTop = lb.scrollHeight; });
-  on("log", (r) => {
+  disposers.push(on("log", (r) => {
     if (!lb.isConnected) return;
     const stick = lb.scrollHeight - lb.scrollTop - lb.clientHeight < 40;
     lb.insertAdjacentHTML("beforeend", line(r));
     while (lb.children.length > 500) lb.firstElementChild.remove();
     if (stick) lb.scrollTop = lb.scrollHeight;
-  });
+  }));
   $("[data-dl]", box).onclick = () => download("app-log.txt", lb.innerText);
   return section("logs", "terminal", "运行日志", "", box);
 }
