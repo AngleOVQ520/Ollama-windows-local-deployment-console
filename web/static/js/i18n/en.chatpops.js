@@ -101,6 +101,10 @@ export default {
     // 上下文上限 / 当前加载量
     [/^模型上限 (.+)$/, "Model limit $1"],
     [/^当前已加载：(.+)$/, "Currently loaded: $1"],
+    // 数值越界钳制提示：`${label} 已限制在 ${fmt(c)}` / 打开浮窗或切换模型时的上限提示
+    [/^(.+) 已限制在 (.+)$/, "$1 limited to $2"],
+    [/^当前模型上限为 (.+)，上下文窗口已限制为 (.+)$/, "Current model limit is $1; context window limited to $2"],
+    [/^模型上限为 (.+)，已限制为 (.+)$/, "Model limit is $1; limited to $2"],
     // 模型列表里的 MTP 张量摘要：MTP 12 张量 · 8 层 / MTP 12 张量
     [/^MTP (\d+) 张量 · (\d+) 层$/, "MTP $1 tensors · $2 layers"],
     [/^MTP (\d+) 张量$/, "MTP $1 tensors"],

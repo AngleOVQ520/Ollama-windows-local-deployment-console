@@ -1,7 +1,7 @@
 // 设置页：外观 / 对话 / 思考 / 默认参数 / 上下文 / 引擎 / API / 预设 / 数据 / 日志 / 快捷键 / 关于
 import { del, get, on, post, put } from "../core/api.js";
 import { icon } from "../core/icons.js";
-import { saveSettings, setting, store } from "../core/store.js";
+import { ctxLimit, markSettingsConfirmed, saveSettings, setting, store } from "../core/store.js";
 import { $, $$, confirmBox, copyText, download, esc, fmtBytes, fmtMs, fmtTime, h, modal, seg, toast, toastErr } from "../core/ui.js";
 import { THINK_META } from "./chat_pops.js";
 import { pickPath } from "./filebrowser.js";
@@ -31,6 +31,7 @@ export function mount(r) {
   $("[data-resetall]", root).onclick = async () => {
     if (!(await confirmBox("将所有设置恢复为默认值（不影响对话、模型与统计数据）。", { danger: true, ok: "恢复默认" }))) return;
     store.settings = await post("/api/settings/reset", {});
+    markSettingsConfirmed();
     (await import("../core/store.js")).applyUi();
     render();
     toast("已恢复默认设置", "ok");
@@ -107,7 +108,7 @@ function section(id, ic, title, desc, ...children) {
 }
 function resetBtn(sec) {
   const b = h(`<button class="btn xs ghost">${icon("refresh", "sm")}恢复本节默认</button>`);
-  b.onclick = async () => { store.settings = await post("/api/settings/reset", { section: sec }); (await import("../core/store.js")).applyUi(); render(); toast("已恢复", "ok"); };
+  b.onclick = async () => { store.settings = await post("/api/settings/reset", { section: sec }); markSettingsConfirmed(); (await import("../core/store.js")).applyUi(); render(); toast("已恢复", "ok"); };
   return b;
 }
 
@@ -189,9 +190,11 @@ function secParams() {
 }
 
 function secContext() {
+  // 与首页「上下文」浮窗同一口径：上限取模型声明的上下文，模型未知时才保留 128K
+  const lim = ctxLimit();
   return section("context", "layers", "上下文", "与首页「上下文」浮窗同步。",
-    row("上下文窗口 num_ctx", "越大越占显存；超过模型声明上限可能导致效果下降", num("context.num_ctx", { min: 512, max: 1048576, step: 512, unit: "tokens", cls: "" })),
-    row("最大输入", "发送前裁剪较早历史，0 = 不限制", num("context.max_input", { min: 0, max: 1048576, step: 256, unit: "tokens", cls: "" })),
+    row("上下文窗口 num_ctx", "越大越占显存；超过模型声明上限可能导致效果下降", num("context.num_ctx", { min: 512, max: lim, step: 512, unit: "tokens", cls: "" })),
+    row("最大输入", "发送前裁剪较早历史，0 = 不限制", num("context.max_input", { min: 0, max: lim, step: 256, unit: "tokens", cls: "" })),
     row("最大输出", "单次回复上限（含思考），0 = 不限制", num("context.max_output", { min: 0, max: 262144, step: 128, unit: "tokens", cls: "" })),
     row("保留历史轮数", "只发送最近 N 轮对话，0 = 全部", num("context.history_turns", { min: 0, max: 1000 })),
     row("", "", resetBtn("context")));
@@ -434,6 +437,7 @@ function importSettings() {
     try {
       const data = JSON.parse(await inp.files[0].text());
       store.settings = await post("/api/settings/import", data);
+      markSettingsConfirmed();
       (await import("../core/store.js")).applyUi();
       render();
       toast("设置已导入", "ok");

@@ -87,6 +87,7 @@ export default {
     "已完成": "Completed",
     "下载": "Download",
     "原图": "Original",
+    "查看历史作品": "Viewing history",
     "还没有历史作品": "No history yet",
 
     // ---------------- pages/stats.js：页面骨架 / 图表卡片 ----------------
@@ -206,6 +207,8 @@ export default {
   },
   rules: [
     // ---- pages/image.js ----
+    // 排队提示：`(j.stage || "排队中") + "…"`（对话生成期间 stage 为「等待对话结束」）
+    [/^等待对话结束…$/, "Waiting for chat to finish…"],
     // 生成完成 toast：`生成完成 · ${e.outputs.length} 张 · ${fmtMs(e.elapsed_ms)}`
     [/^生成完成 · (\d+) 张 · (.+)$/, "Generation complete · $1 images · $2"],
     // 生成失败 toast：`"生成失败：" + (e.error || "未知错误")`

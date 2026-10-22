@@ -52,4 +52,19 @@ TABLE = {
     "已删除分区「%s」": "Deleted partition \"%s\"",
     "已删除模型 %s": "Deleted model %s",
     "同步分区「%s」失败: %s": "Failed to sync partition \"%s\": %s",
+    "[1/2] 同步分区「%s」：%d 个模型待更新，并发拉取元数据…":
+        "[1/2] Syncing partition \"%s\": %d model(s) to update, fetching metadata concurrently…",
+    "[2/2] 写入数据库：%d 个模型": "[2/2] Writing to database: %d model(s)",
+    "同步模型 %s 失败（已跳过）: %s": "Failed to sync model %s (skipped): %s",
+    "同步分区「%s」进度 %d/%d": "Syncing partition \"%s\": %d/%d",
+    "同步分区「%s」完成：%d/%d 个模型更新成功":
+        "Sync of partition \"%s\" finished: %d/%d model(s) updated",
+    "同步分区「%s」完成：%d 个模型": "Sync of partition \"%s\" finished: %d model(s)",
+
+    # 同名导入拦截 / 覆盖 / 回滚
+    "该分区已有同名模型 %s，请确认覆盖或换一个名字":
+        "A model named %s already exists in this partition; confirm overwrite or choose another name",
+    "已覆盖同名模型 %s": "Overwrote existing model %s",
+    "已回滚本次导入的 blob": "Rolled back the blob created by this import",
+    "回滚 blob 失败: %s": "Failed to roll back blob: %s",
 }

@@ -1,6 +1,7 @@
 // Markdown 渲染：marked + DOMPurify + KaTeX（含 mhchem）+ highlight.js + Mermaid
 // 代码块支持「代码 / 预览」切换：html / svg / mermaid / markdown，预览在沙箱 iframe 中运行
 import { icon } from "./icons.js";
+import { t } from "./i18n.js";
 import { copyText, download, esc, h, seg, toast } from "./ui.js";
 import { setting } from "./store.js";
 
@@ -117,11 +118,18 @@ export function openFullPreview(code, kind = "html", lang = "html") {
     if (a === "close") close();
     if (a === "dl") download(`preview.${kind === "svg" ? "svg" : kind === "md" ? "md" : "html"}`, code, "text/html");
     if (a === "newtab") {
-      // data: 页面为不透明源（origin 为 null），脚本读不到应用存储、也不能带同源身份调接口；
-      // 注意 blob: 会继承主站源，不能用于此用途。
-      const u = "data:text/html;charset=utf-8," + encodeURIComponent(doc.replace(/(href|src)="\/static\//g, `$1="${location.origin}/static/`));
-      const w = window.open(u, "_blank");
-      if (w) { try { w.opener = null; } catch { /* 跨源时不可写，忽略 */ } }
+      // 浏览器禁止脚本发起 data: 顶层导航（会得到空白页），这里改为在空白标签页里放一个
+      // 无 allow-same-origin 的 sandbox iframe：内容仍是不透明源，读不到应用存储、也不能带同源身份调接口。
+      // 注意 blob: 会继承主站源，data: 顶层导航会被 Chrome 拦截，两者都不能用于此用途。
+      const w = window.open("", "_blank");
+      if (w) {
+        const inner = doc.replace(/(href|src)="\/static\//g, `$1="${location.origin}/static/`);
+        const attr = inner.replace(/&/g, "&amp;").replace(/"/g, "&quot;");
+        w.document.open();
+        w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${t("预览")}</title></head><body style="margin:0;height:100vh"><iframe sandbox="allow-scripts allow-forms allow-modals allow-popups allow-pointer-lock allow-downloads" style="border:0;width:100%;height:100vh" srcdoc="${attr}"></iframe></body></html>`);
+        w.document.close();
+        try { w.opener = null; } catch { /* 只读时忽略 */ }
+      }
     }
     if (a === "code") {
       showCode = !showCode;

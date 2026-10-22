@@ -4,6 +4,36 @@
 
 ---
 
+## v1.1.31 (2026-10-22)
+
+**缺陷修复：本轮集中修复 22 项缺陷，覆盖模型同步与引擎、GGUF 导入与文件边界、接口鉴权与模型索引、对话参数与设置保存、生图调度与统计图表。**
+
+### 修复
+- backend/services/registry.py — 同步不再无条件解析 GGUF；深度扫描改为并发拉取、串行写库；模型列表裁剪大字段
+- backend/services/engines.py — 启动前复用或清理旧进程，避免重复拉起；取消跨域来源通配
+- backend/services/jobs.py — 中文文件名导入追加稳定短哈希并自动去重；同名导入拦截；失败只回滚本次新建的 blob
+- backend/routes/api_misc.py — 清理临时文件跳过生图参考图与近期写入；目录校验改为路径边界比较
+- backend/services/api_server.py — 空密钥一律拒绝；新增模型内存索引
+- backend/launcher.py — 界面服务强制回环监听，旧配置回退并告警
+- backend/services/chat.py — 回复记录生成时的 MTP 探测结果；采样参数在服务端再钳制一层
+- backend/services/imagegen.py — 对话生成期间生图排队等待，不再卸载模型
+- backend/services/loader.py — 新增只读的正在生成会话数访问器
+- web/static/js/core/store.js — 设置保存防抖不再吞掉排队调用的结算，失败回滚并提示；新增上下文上限与数值钳制工具
+- web/static/js/core/markdown.js — 新标签页预览改为空白页内嵌 sandbox iframe（srcdoc），恢复可用且仍隔离应用存储与接口
+- web/static/js/pages/chat_pops.js — 上下文上限取模型声明值；参数手动输入越界钳制并回写；预设值同样钳制
+- web/static/js/pages/chat.js — MTP 徽标改读消息自身字段
+- web/static/js/pages/models.js — 加载事件按状态变化重建，纯进度更新节流
+- web/static/js/pages/settings.js — 上下文上限与浮窗同口径；重置/导入后同步回滚基准
+- web/static/js/pages/image.js — 运行任务与查看结果拆分为两个状态
+- web/static/js/pages/stats.js — 迷你折线图实例统一登记与释放；切页暂停动画
+- backend/i18n_parts/jobs.py、backend/i18n_parts/services.py — 补充同步进度、同名导入、生图排队、界面监听回退的英文词条
+- web/static/js/i18n/en.core.js、en.chatpops.js、en.media.js、en.settings.js — 补充本轮新增提示与上限钳制文案的英文词条
+- backend/__init__.py — 版本号升至 1.1.31
+- README.md — 更新当前版本号与变更摘要
+- CHANGELOG.md — 记录本次修复
+
+本轮对应提交：28c5680、9e65158、128f4d5、241e903、4fd2c46。
+
 ## v1.1.9 (2026-10-22)
 
 ### 修复

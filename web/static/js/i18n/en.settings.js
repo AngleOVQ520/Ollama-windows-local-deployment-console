@@ -262,6 +262,7 @@ export default {
     "界面端口": "Web UI Port",
     "监听地址": "Listening Address",
     "127.0.0.1 仅本机；0.0.0.0 允许局域网访问界面（无鉴权，请谨慎）": "127.0.0.1 local only; 0.0.0.0 allows LAN access to the UI (no authentication; use with caution)",
+    "界面服务无鉴权，仅允许本机（127.0.0.1）访问；局域网访问请使用 API 服务": "The UI service has no authentication and only accepts local 127.0.0.1 access; use the API service for LAN access",
     "127.0.0.1（仅本机）": "127.0.0.1 (local only)",
     "0.0.0.0（局域网）": "0.0.0.0 (LAN)",
     "启动时自动打开浏览器": "Open Browser on Startup",

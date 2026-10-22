@@ -59,5 +59,7 @@ export default {
     [/^Mermaid 语法错误：([\s\S]+)$/, "Mermaid syntax error: $1"],
     // 磁盘可用空间：`${fmtBytes(x.free, 0)} 可用`
     [/^(.+) 可用$/, "$1 free"],
+    // 设置保存失败：`"设置保存失败，已恢复为上次保存的值：" + (e?.message || e)`
+    [/^设置保存失败，已恢复为上次保存的值：([\s\S]*)$/, "Failed to save settings; reverted to the last saved values: $1"],
   ],
 };

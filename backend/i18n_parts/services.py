@@ -32,9 +32,14 @@ TABLE = {
     # ---------------- api_server（ApiServer） ----------------
     "端口 %s 被占用：%s": "Port %s already in use: %s",
     "API 服务已启动 http://%s:%s/v1": "API service started http://%s:%s/v1",
+    "界面服务不支持监听 %s（无鉴权），已回退到 127.0.0.1；局域网访问请使用 API 服务":
+        "The UI service cannot listen on %s (no authentication); falling back to 127.0.0.1. Use the API service for LAN access",
 
     # ---------------- imagegen（ImageGenService） ----------------
     "生图功能已在设置中关闭": "Image generation is disabled in Settings",
+    "对话正在生成，生图任务 %s 排队等待对话结束":
+        "Chat is generating; image job %s is queued until it finishes",
+    "等待对话结束": "Waiting for chat to finish",
     "未找到生图引擎 sd-cli.exe（runtime/sdcpp/bin）": "Image engine sd-cli.exe not found (runtime/sdcpp/bin)",
     "提示词不能为空": "Prompt cannot be empty",
     "缺少生图资产：%s（请放到 models/image 目录）": "Missing image assets: %s (place them in models/image)",
