@@ -207,8 +207,13 @@ def fs_scan():
 def fs_open():
     """在资源管理器中打开文件夹（仅限分区目录与项目目录）。"""
     p = os.path.abspath(body().get("path") or "")
+    # 按路径边界比较：路径必须等于允许的根或位于其下，避免同前缀兄弟目录（如 proj-other）混入
+    key = os.path.normcase(os.path.normpath(p))
     allowed = [paths.ROOT] + [x["path"] for x in ctx().db.query("SELECT path FROM partitions")]
-    if not any(os.path.normcase(p).startswith(os.path.normcase(a)) for a in allowed) or not os.path.exists(p):
+    ok_path = any(key == os.path.normcase(os.path.normpath(os.path.abspath(a)))
+                  or key.startswith(os.path.normcase(os.path.normpath(os.path.abspath(a))) + os.sep)
+                  for a in allowed)
+    if not ok_path or not os.path.exists(p):
         return fail(T("不允许打开该路径"))
     if os.name == "nt":
         os.startfile(p)
@@ -264,10 +269,18 @@ def clear_logs():
 
 @bp.post("/data/clear-tmp")
 def clear_tmp():
+    # 生图参考图存在临时目录且被历史记录引用，清理时必须保留（本轮不迁移路径）
+    keep = {os.path.normcase(paths.IMAGE_UPLOAD_DIR), os.path.normcase(os.path.join(paths.TMP_DIR, "uploads"))}
+    now = time.time()
     n = 0
     for f in os.listdir(paths.TMP_DIR):
         p = os.path.join(paths.TMP_DIR, f)
         try:
+            if os.path.normcase(p) in keep:
+                continue
+            # 最近 10 分钟内改动过的文件可能正在上传/写入，跳过避免打断
+            if now - os.path.getmtime(p) < 600:
+                continue
             if os.path.isdir(p):
                 shutil.rmtree(p)
             else:

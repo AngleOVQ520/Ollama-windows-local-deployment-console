@@ -4,6 +4,7 @@
 """
 import hashlib
 import os
+import re
 import shutil
 import threading
 import time
@@ -13,6 +14,10 @@ from ..core import gguf
 from .. import paths
 from ..i18n import T
 from .registry import guess_category, normalize_name
+
+
+def _non_ascii(s):
+    return any(ord(c) > 127 for c in s or "")
 
 
 class Job:
@@ -195,7 +200,52 @@ class JobService:
         s["params_label"] = s["size_label"] or gguf.format_params(s["param_count"])
         return s
 
-    def start_import(self, partition_id, path, name, remark="", category="", mode="auto", options=None):
+    def suggest_import_name(self, partition_id, path, summary, name=None):
+        """导入建议：未指定名称时按文件名生成并查重；返回 (模型名, 备注名)。
+
+        纯中文文件名规范化后会丢信息，用原文件名短哈希保证可辨识且唯一；
+        同分区已有同名模型时自动追加序号，避免静默覆盖。
+        """
+        p = self.registry.partition(partition_id)
+        if not p:
+            raise KeyError(T("分区不存在"))
+        bank = self._name_bank(p)
+        if name:
+            base = normalize_name(sanitize_model_name(name))
+            if base in bank:
+                raise ValueError(T("该分区已有同名模型 %s，请确认覆盖或换一个名字") % base)
+            return base, ""
+        base = normalize_name(sanitize_model_name(suggest_model_name(path, summary)))
+        disp = os.path.splitext(os.path.basename(path))[0]
+        # 纯中文名规范化后仅剩参数量/量化，再追加原文件名短哈希便于区分
+        if _non_ascii(os.path.splitext(os.path.basename(path))[0]):
+            short = hashlib.sha1(os.path.basename(path).encode("utf-8")).hexdigest()[:6]
+            if short not in base:
+                base = "%s-%s%s" % (base.partition(":")[0], short, base[len(base.partition(":")[0]):])
+        m = re.match(r"^(.*?)(?::([^:]+))$", base)
+        stem, tag = (m.group(1), m.group(2)) if m else (base, "latest")
+        uniq, i = base, 2
+        while uniq in bank:
+            uniq = "%s-%d:%s" % (stem, i, tag)
+            i += 1
+        return uniq, disp
+
+    def _name_bank(self, p):
+        """同分区已占用的名称：引擎现有模型 + 库中记录 + 排队/运行中的导入。"""
+        bank = set()
+        eng = self.engines.peek(p["id"])
+        if eng is not None and eng.alive() and eng.status == "running":
+            try:
+                bank.update(t["name"] for t in eng.client.tags())
+            except Exception:
+                pass
+        for r in self.registry.db.query("SELECT name FROM models WHERE partition_id=?", (p["id"],)):
+            bank.add(r["name"])
+        bank.update(j.target for j in self.jobs.values()
+                    if j.kind == "import" and j.partition_id == p["id"] and j.status in ("queued", "running"))
+        return bank
+
+    def start_import(self, partition_id, path, name, remark="", category="", mode="auto", options=None, confirm_overwrite=False):
         p = self.registry.partition(partition_id)
         if not p:
             raise KeyError(T("分区不存在"))
@@ -207,12 +257,21 @@ class JobService:
         except Exception as e:
             raise ValueError(T("不是有效的 GGUF 文件：%s") % e)
         name = normalize_name(sanitize_model_name(name or suggest_model_name(path, {})))
+        if name in self._name_bank(p):
+            if not confirm_overwrite:
+                raise ValueError(T("该分区已有同名模型 %s，请确认覆盖或换一个名字") % name)
+            # 明确确认覆盖：先删掉旧定义，避免引擎侧覆盖后旧权重变成孤儿文件
+            old = self.registry.find(p["id"], name)
+            if old:
+                self.registry.delete_model(old["id"])
+                self.log.warn("import", T("已覆盖同名模型 %s") % name)
         job = Job("import", partition_id, name, label=os.path.basename(path))
         job.src = path
-        job.remark = remark
+        job.remark = remark or os.path.splitext(os.path.basename(path))[0]
         job.category = category
         job.mode = mode
         job.options = options or {}
+        job.overwrite = bool(confirm_overwrite)
         self.jobs[job.id] = job
         self._emit(job, force=True)
         threading.Thread(target=self._run_import, args=(job, p), daemon=True).start()
@@ -221,6 +280,13 @@ class JobService:
     def _run_import(self, job, p):
         job.status = "running"
         self.log.info("import", T("导入 %s → 分区「%s」为 %s") % (job.src, p["name"], job.target))
+        blobs = os.path.join(p["path"], "blobs")
+        dst = None
+        created = False  # 本次新建（而非复用）的 blob 才能回滚，避免误删其它模型共享的权重
+        created_model = False
+        # 拖拽上传的临时文件：成功后（硬链接）删除，失败时也必须删掉，不能留在临时目录
+        src = os.path.normcase(os.path.normpath(job.src))
+        uploaded = src.startswith(os.path.normcase(os.path.normpath(os.path.join(paths.TMP_DIR, "uploads"))) + os.sep)
         try:
             eng = self.engines.get(p)
             if eng.status != "running":
@@ -244,7 +310,6 @@ class JobService:
                     self._speed(job, samples)
                     self._emit(job)
             digest = "sha256:" + h.hexdigest()
-            blobs = os.path.join(p["path"], "blobs")
             os.makedirs(blobs, exist_ok=True)
             dst = os.path.join(blobs, digest.replace(":", "-"))
             # 2) 放入分区 blobs（硬链接 > 复制）
@@ -254,6 +319,7 @@ class JobService:
                     try:
                         os.link(job.src, dst)
                         linked = True
+                        created = True
                         job.stage = T("已硬链接（零拷贝）")
                     except OSError:
                         if job.mode == "link":
@@ -277,6 +343,7 @@ class JobService:
                             self._speed(job, samples)
                             self._emit(job)
                     os.replace(tmp, dst)
+                    created = True
             job.completed = job.total
             # 3) 创建模型
             job.stage = T("创建模型")
@@ -290,40 +357,61 @@ class JobService:
             if opts:
                 body["parameters"] = opts
             resp, it = eng.client.stream("/api/create", body, timeout=(10, 900))
+            created_model = True  # create 一旦成功，引擎里就已有同名定义，失败后需要撤销
             for d in it:
                 job.stage = {"parsing GGUF": T("解析 GGUF"), "writing manifest": T("写入清单"), "success": T("完成")}.get(d.get("status"), d.get("status") or job.stage)
                 self._emit(job)
             resp.close()
-            # 拖拽上传的临时文件：导入（硬链接）完成后删除，避免占双份空间
-            uploaded = os.path.normcase(job.src).startswith(os.path.normcase(os.path.join(paths.TMP_DIR, "uploads")))
             m = self.registry.register(p["id"], job.target, "gguf",
                                        source_path=("" if uploaded else job.src), remark=job.remark)
-            if uploaded:
-                try:
-                    os.remove(job.src)
-                except OSError:
-                    pass
             if job.category:
                 self.registry.update_model(m["id"], {"category": job.category})
             job.model_id = m["id"]
             self._finish(job, "done", T("已导入到分区「%s」") % p["name"])
             self.log.ok("import", T("GGUF 导入完成：%s") % job.target)
         except Exception as e:
+            self._rollback_import(job, p, dst, created, created_model)
             self._finish(job, "error", str(e))
             self.log.error("import", T("导入失败：%s") % e)
+        finally:
+            if uploaded:
+                try:
+                    os.remove(job.src)
+                except OSError:
+                    pass
+
+    def _rollback_import(self, job, p, dst, created, created_model):
+        """失败回滚：撤销本次创建的模型与本次新建的 blob，不碰共享 blob 与历史孤儿。"""
+        if created_model:
+            try:
+                eng = self.engines.get(p)
+                eng.client.delete(job.target)
+            except Exception:
+                pass
+        if created and dst and os.path.isfile(dst):
+            try:
+                os.remove(dst)
+                self.log.warn("import", T("已回滚本次导入的 blob"))
+            except OSError as e:
+                self.log.warn("import", T("回滚 blob 失败: %s") % e)
 
 
 def sanitize_model_name(name):
-    import re
     name = (name or "").strip().lower()
     base, _, tag = name.partition(":")
-    base = re.sub(r"[^a-z0-9._/\-]+", "-", base).strip("-._/") or "model"
+    if _non_ascii(base):
+        base = re.sub(r"[^a-z0-9._/\-]+", "-", base).strip("-._/")
+        # 纯中文名规范化后只剩标点，信息全丢：用原文件名短哈希作为稳定且唯一的标识
+        digest = hashlib.sha1(name.encode("utf-8")).hexdigest()[:6] if not base else None
+        base = (base + "-" + digest) if digest else base
+    else:
+        base = re.sub(r"[^a-z0-9._/\-]+", "-", base).strip("-._/")
+    base = base or "model"
     tag = re.sub(r"[^a-z0-9._\-]+", "-", tag).strip("-.") if tag else ""
     return base + (":" + tag if tag else "")
 
 
 def suggest_model_name(path, summary):
-    import re
     stem = os.path.splitext(os.path.basename(path))[0]
     m = re.search(r"[-_.]((?:IQ|Q|F|BF)\d[\w]*)$", stem, re.I)
     if m:
