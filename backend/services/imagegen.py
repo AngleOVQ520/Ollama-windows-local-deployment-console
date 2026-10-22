@@ -297,6 +297,10 @@ class ImageGenService:
         n = p["batch"]
         outfile = os.path.join(outdir, "out-%d.png") if n > 1 else os.path.join(outdir, "out.png")
 
+        # 有对话正在生成时先让路：卸载会杀掉推理进程并打断输出，这里排队等对话结束
+        if self._wait_idle(job):
+            return
+
         # 显存不足时 Ollama 模型与扩散模型无法共存，按设置先卸载
         if self.config.get("image.unload_llm", True):
             st = self.loader.state
@@ -399,6 +403,29 @@ class ImageGenService:
             self.log.ok("image", T("生图完成 %s（%d 张，%.1f 秒）") % (
                 job["id"], len(outputs), (time.time() - job["started_at"])))
         self._finish(job)
+
+    def _wait_idle(self, job):
+        """对话正在生成时排队等待（不卸载、不打断），期间保持任务处于排队状态。
+
+        返回 True 表示等待期间任务被取消，调用方应直接结束。
+        """
+        warned = False
+        while True:
+            if job["id"] in self._cancel:
+                return True
+            try:
+                busy = self.loader.busy_count()
+            except Exception:
+                return False
+            if busy <= 0:
+                return False
+            if not warned:
+                warned = True
+                self.log.info("image", T("对话正在生成，生图任务 %s 排队等待对话结束") % job["id"])
+            job["status"] = "queued"
+            job["stage"] = T("等待对话结束")
+            self._emit(job, force=True)
+            time.sleep(0.5)
 
     @staticmethod
     def _friendly_error(tail):

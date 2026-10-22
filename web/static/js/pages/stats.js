@@ -3,7 +3,8 @@ import { del, get, on } from "../core/api.js";
 import { icon } from "../core/icons.js";
 import { $, $$, confirmBox, countUp, debounce, esc, fmtMs, fmtNum, fmtTime, h, seg, toast } from "../core/ui.js";
 
-const S = { days: 30, data: null, charts: {}, trendMetric: "tokens" };
+// charts：主图（按 data-c 注册）；sparks：KPI 迷你折线图，重绘前必须整体释放
+const S = { days: 30, data: null, charts: {}, sparks: [], trendMetric: "tokens" };
 const echarts = window.echarts;
 
 function css(v) { return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
@@ -64,13 +65,31 @@ export function mount(root) {
   };
   addEventListener("resize", debounce(() => Object.values(S.charts).forEach((c) => c.resize()), 150));
   on("usage", debounce(() => { if (root.closest(".view.on")) load(); }, 1500));
-  on("settings", debounce(() => { if (root.closest(".view.on")) { Object.values(S.charts).forEach((c) => c.dispose()); S.charts = {}; draw(); } }, 300));
+  // 主题切换：主图与迷你折线一起释放重建，否则迷你图仍用旧主题配色
+  on("settings", debounce(() => {
+    if (!root.closest(".view.on")) return;
+    Object.values(S.charts).forEach((c) => c.dispose());
+    S.charts = {};
+    disposeSparks();
+    draw();
+  }, 300));
+  // 页面切走时暂停动画：外壳没有卸载钩子，这里监听视图的 on 类名变化；
+  // 用 __statsViewObs 标记，避免页面 DOM 被外壳重建后重复挂监听
+  const view = root.closest(".view");
+  if (view && !view.__statsViewObs && window.MutationObserver) {
+    view.__statsViewObs = new MutationObserver(() => {
+      if (view.classList.contains("on")) resumeAnim();
+      else pauseAnim();
+    });
+    view.__statsViewObs.observe(view, { attributes: true, attributeFilter: ["class"] });
+  }
   load();
 }
 export function onShow() {
   if (!S.root) return;
-  // 切回本页时先立即显示（只修正图表尺寸），数据刷新放到下一帧，避免导航切换卡顿
-  Object.values(S.charts).forEach((c) => c.resize());
+  Object.values(S.charts).forEach((c) => c.resize({ animation: false }));
+  S.sparks.forEach((c) => { if (!c.isDisposed()) c.resize({ animation: false }); });
+  resumeAnim();
   requestAnimationFrame(() => {
     setTimeout(() => {
       if (!S.root?.closest(".view.on")) return;
@@ -95,6 +114,7 @@ function delta(cur, prev) {
 function draw() {
   const d = S.data;
   if (!d) return;
+  disposeSparks();  // 下面会重建 KPI 卡片，旧的迷你折线实例随之释放
   const o = d.overview;
   const range = { 1: o.today, 7: o.d7, 30: o.d30 }[S.days] || summarize(d.daily);
   const kpis = [
@@ -150,11 +170,31 @@ function summarize(daily) {
   return s;
 }
 
+/** 本页当前是否可见（主题切换等异步回调里也要判断，避免不可见时初始化图表） */
+function visible() { return !!S.root?.closest(".view.on"); }
+
 function sparkline(el, vals) {
-  if (!el) return;
+  if (!el || !visible()) return;
+  // 容器是每次重绘新建的 DOM，旧实例不会随 DOM 释放，必须显式登记后统一 dispose
   const c = echarts.init(el);
+  S.sparks.push(c);
   c.setOption({ grid: { left: 0, right: 0, top: 2, bottom: 2 }, xAxis: { type: "category", show: false, data: vals.map((_, i) => i) }, yAxis: { show: false, min: 0 },
     series: [{ type: "line", data: vals, smooth: true, symbol: "none", lineStyle: { width: 1.6, color: css("--acc") }, areaStyle: { color: grad(css("--acc"), 0.3) } }], animationDuration: 1200 });
+}
+
+function disposeSparks() {
+  S.sparks.forEach((c) => { if (c && !c.isDisposed()) c.dispose(); });
+  S.sparks = [];
+}
+
+/** 暂停全部动画（echarts 暂停渲染循环，重新可见后 resume 继续） */
+function pauseAnim() {
+  Object.values(S.charts).forEach((c) => { if (!c.isDisposed()) c.getZr().animation?.pause(); });
+  S.sparks.forEach((c) => { if (!c.isDisposed()) c.getZr().animation?.pause(); });
+}
+function resumeAnim() {
+  Object.values(S.charts).forEach((c) => { if (!c.isDisposed()) c.getZr().animation?.resume(); });
+  S.sparks.forEach((c) => { if (!c.isDisposed()) c.getZr().animation?.resume(); });
 }
 
 function days() { return S.data.daily.map((r) => r.day.slice(5)); }

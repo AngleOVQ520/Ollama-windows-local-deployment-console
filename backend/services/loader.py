@@ -73,6 +73,11 @@ class ModelLoader:
         with self._lock:
             self._busy += 1
 
+    def busy_count(self):
+        """正在生成的会话数（只读，供生图等需要避让推理的场景判断）。"""
+        with self._lock:
+            return self._busy
+
     def chat_end(self):
         with self._lock:
             self._busy = max(0, self._busy - 1)

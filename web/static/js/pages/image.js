@@ -5,7 +5,9 @@ import { saveSettings, setting } from "../core/store.js";
 import { $, $$, esc, fmtBytes, fmtMs, h, toast, toastErr } from "../core/ui.js";
 
 const S = {
-  root: null, refs: [], job: null, history: [], status: null,
+  root: null, refs: [], history: [], status: null,
+  // job：正在运行（排队/生成）的任务，只由进度与完成事件更新；viewing：正在查看的历史作品，与运行任务互不影响
+  job: null, viewing: null,
   busy: false, startedAt: 0, previewTimer: null, tickTimer: null,
 };
 
@@ -123,6 +125,7 @@ export function mount(root) {
     renderProgress();
     if (e.status === "done") {
       toast(`生成完成 · ${e.outputs.length} 张 · ${fmtMs(e.elapsed_ms)}`, "ok", 4000);
+      S.viewing = null;
       renderOutputs(e.outputs);
     } else if (e.status === "error") {
       toast("生成失败：" + (e.error || "未知错误"), "err", 8000);
@@ -320,6 +323,7 @@ async function generate() {
       preview: t.preview, vae_tiling: t.vae_tiling,
     });
     S.job = { id: r.id, status: "queued", stage: "排队中", progress: 0, step: 0, total_steps: 0, it_s: 0, eta_s: 0 };
+    S.viewing = null;
     $(".img-empty", S.root).classList.add("hidden");
     $(".img-outputs", S.root).innerHTML = "";
     $(".img-progress", S.root).classList.remove("hidden");
@@ -383,7 +387,7 @@ function renderProgress() {
   if (j.eta_s) parts.push(`剩余约 ${Math.max(1, Math.round(j.eta_s))}s`);
   if (j.queued) parts.push(`队列 ${j.queued}`);
   $("[data-ptime]", root).textContent = parts.join(" · ");
-  $("[data-result-hint]", root).textContent = running ? (j.status === "queued" ? "排队中…" : "生成中…") : j.status === "done" ? "已完成" : "";
+  $("[data-result-hint]", root).textContent = running ? (j.status === "queued" ? (j.stage || "排队中") + "…" : "生成中…") : (S.viewing ? "查看历史作品" : j.status === "done" ? "已完成" : "");
 }
 
 function renderOutputs(outputs) {
@@ -406,7 +410,8 @@ function renderOutputs(outputs) {
 async function loadHistory() {
   try { S.history = await get("/api/image/jobs?limit=40"); } catch { return; }
   const last = S.history.find((j) => j.status === "done" && j.outputs?.length);
-  if (last && !$(".img-outputs", S.root).children.length && !S.busy) {
+  // 只在既没有运行任务、也没有手动查看历史时才自动回填最近作品，避免覆盖用户正在看的进度/结果
+  if (last && !$(".img-outputs", S.root).children.length && !S.busy && !S.viewing) {
     renderOutputs(last.outputs);
     $(".img-progress", S.root).classList.add("hidden");
   }
@@ -427,10 +432,10 @@ function renderGallery() {
     for (const o of j.outputs) {
       const el = h(`<div class="gal-item"><img src="${o.url}" loading="lazy" alt="">
         <div class="gal-info"><span class="ellipsis">${esc(j.prompt)}</span><span class="dim">${fmtMs(j.elapsed_ms)} · ${o.width}×${o.height} · seed ${j.params?.seed ?? "—"}</span></div></div>`);
+      // 只看结果，不碰运行中的任务：图片下方展示历史作品，运行任务的进度条照常更新
       el.onclick = () => {
-        S.job = { ...j };
+        S.viewing = j;
         renderOutputs([o]);
-        $(".img-progress", S.root).classList.add("hidden");
         scrollTo({ top: 0, behavior: "smooth" });
       };
       grid.appendChild(el);
