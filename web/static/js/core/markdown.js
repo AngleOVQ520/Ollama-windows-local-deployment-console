@@ -116,7 +116,13 @@ export function openFullPreview(code, kind = "html", lang = "html") {
     if (!a) return;
     if (a === "close") close();
     if (a === "dl") download(`preview.${kind === "svg" ? "svg" : kind === "md" ? "md" : "html"}`, code, "text/html");
-    if (a === "newtab") { const w = window.open("", "_blank"); if (w) { w.document.open(); w.document.write(doc); w.document.close(); } }
+    if (a === "newtab") {
+      // data: 页面为不透明源（origin 为 null），脚本读不到应用存储、也不能带同源身份调接口；
+      // 注意 blob: 会继承主站源，不能用于此用途。
+      const u = "data:text/html;charset=utf-8," + encodeURIComponent(doc.replace(/(href|src)="\/static\//g, `$1="${location.origin}/static/`));
+      const w = window.open(u, "_blank");
+      if (w) { try { w.opener = null; } catch { /* 跨源时不可写，忽略 */ } }
+    }
     if (a === "code") {
       showCode = !showCode;
       body.innerHTML = "";

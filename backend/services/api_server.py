@@ -22,7 +22,12 @@ class ApiServer:
         self.thread = None
         self.error = ""
         self._lock = threading.Lock()
+        self._idx_lock = threading.Lock()
+        self._idx = None        # (分区行, (分区 id, 模型名) -> 模型行, 模型名 -> 首个模型行)
+        self._idx_ver = None    # 构索引时的 models_changed 版本
+        self._ver = 0           # 模型变更事件计数，用作失效标记
         self.app = self._build()
+        self._listen()
 
     # ---------------- 生命周期 ----------------
     def url(self):
@@ -70,20 +75,56 @@ class ApiServer:
                 "lan": cfg.get("lan"), "port": cfg.get("port")}
 
     # ---------------- 工具 ----------------
+    def _listen(self):
+        """订阅模型变更事件：新增/删除/改名/同步后让内存索引失效。"""
+        try:
+            self._q = self.ctx.bus.subscribe()
+        except Exception:
+            self._q = None
+            return
+
+        def run():
+            while True:
+                try:
+                    etype, _ = self._q.get()
+                except Exception:
+                    return
+                if etype == "models_changed":
+                    self._ver += 1
+
+        threading.Thread(target=run, daemon=True, name="api-index").start()
+
+    def _index(self):
+        """建立内存索引：分区名 -> 分区行、(分区 id, 模型名) -> 模型行、模型名 -> 首个模型行。"""
+        ver = self._ver
+        idx = self._idx
+        if idx is not None and self._idx_ver == ver:
+            return idx
+        with self._idx_lock:
+            if self._idx is not None and self._idx_ver == self._ver:
+                return self._idx
+            reg = self.ctx.registry
+            parts = reg.db.query("SELECT id, name FROM partitions")
+            from .registry import normalize_name
+            keyed, by_name = {}, {}
+            for m in reg.models():
+                for k in (m["name"], normalize_name(m["name"])):
+                    keyed.setdefault((m["partition_id"], k), m)
+                    by_name.setdefault(k, m)
+            self._idx = (parts, keyed, by_name)
+            self._idx_ver = self._ver
+            return self._idx
+
     def resolve(self, name):
-        reg = self.ctx.registry
+        from .registry import normalize_name
         name = (name or "").strip()
-        part_name = None
+        parts, keyed, by_name = self._index()
         if "/" in name:
             head, rest = name.split("/", 1)
-            if any(p["name"] == head for p in reg.db.query("SELECT name FROM partitions")):
-                part_name, name = head, rest
-        from .registry import normalize_name
-        nn = normalize_name(name)
-        for m in reg.models():
-            if m["name"] in (name, nn) and (part_name is None or m["partition_name"] == part_name):
-                return m
-        return None
+            pid = next((p["id"] for p in parts if p["name"] == head), None)
+            if pid is not None:
+                return keyed.get((pid, rest)) or keyed.get((pid, normalize_name(rest)))
+        return by_name.get(name) or by_name.get(normalize_name(name))
 
     def _engine(self, m):
         p = self.ctx.registry.partition(m["partition_id"])
@@ -125,9 +166,11 @@ class ApiServer:
             if request.method == "OPTIONS":
                 return api._cors(Response(status=204))
             cfg = api.ctx.config.section("api")
-            if cfg.get("require_key") and cfg.get("api_key"):
+            if cfg.get("require_key"):
+                # 密钥为空时一律拒绝，避免"开启鉴权但未设置密钥"导致接口裸奔
+                expected = cfg.get("api_key") or ""
                 key = request.headers.get("Authorization", "").replace("Bearer ", "").strip() or request.headers.get("x-api-key", "")
-                if key != cfg["api_key"]:
+                if not expected or key != expected:
                     return api._cors(jsonify({"error": {"message": "Invalid API key", "type": "invalid_request_error"}})), 401
 
         @app.after_request

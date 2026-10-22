@@ -314,7 +314,7 @@ function secApi() {
 function secServer() {
   return section("server", "monitor", "界面服务", "Web 界面的监听设置，修改后需重启 app.py。",
     row("界面端口", `当前访问地址：${location.origin}`, num("server.port", { min: 1024, max: 65535 })),
-    row("监听地址", "127.0.0.1 仅本机；0.0.0.0 允许局域网访问界面（无鉴权，请谨慎）", sel("server.host", [["127.0.0.1", "127.0.0.1（仅本机）"], ["0.0.0.0", "0.0.0.0（局域网）"]])),
+    row("监听地址", "界面服务无鉴权，仅允许本机（127.0.0.1）访问；局域网访问请使用 API 服务", sel("server.host", [["127.0.0.1", "127.0.0.1（仅本机）"]])),
     row("启动时自动打开浏览器", "", sw("server.open_browser")),
     row("关闭程序", "停止后台服务与所有引擎", Object.assign(h(`<button class="btn danger sm">${icon("power", "sm")}退出程序</button>`), {
       onclick: async () => { if (await confirmBox("确定退出程序？后台服务和所有模型引擎都会停止。", { danger: true, ok: "退出" })) { await post("/api/app/shutdown"); document.body.innerHTML = `<div class="empty" style="height:100vh">${icon("power")}<div>程序已退出，可以关闭此页面</div></div>`; } },

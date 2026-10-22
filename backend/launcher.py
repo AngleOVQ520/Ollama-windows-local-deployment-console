@@ -120,6 +120,10 @@ def run(lang="zh"):
 
     ui.task(T("启动界面服务"))
     host = ctx.config.get("server.host") or "127.0.0.1"
+    if host not in ("127.0.0.1", "localhost", "::1"):
+        # 界面服务没有鉴权：只允许监听回环地址，旧配置一律回退
+        ctx.log.warn("app", T("界面服务不支持监听 %s（无鉴权），已回退到 127.0.0.1；局域网访问请使用 API 服务") % host)
+        host = "127.0.0.1"
     api_port = int(ctx.config.get("api.port") or 8849) if ctx.config.get("api.enabled") else 0
     port = pick_port(host, args.port or int(ctx.config.get("server.port") or 8848), avoid=(api_port,))
     app = create_app(ctx)
