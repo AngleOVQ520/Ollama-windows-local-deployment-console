@@ -4,6 +4,21 @@
 
 ---
 
+## v1.0.6 (2026-10-22)
+
+**缺陷修复：全局同步不再拉起空 / 离线分区的引擎；后台初始化（boot）增加异常兜底并向前端提示失败原因；思考预算与思考统计由「流式块数」改为按 token 估算。**
+
+### 修复
+- backend/services/registry.py — 全局同步不再拉起未运行分区的引擎
+- backend/context.py — boot 增加异常兜底并记录失败原因
+- backend/routes/api_misc.py — bootstrap 下发启动失败原因
+- web/static/js/app.js — 启动异常时向用户提示
+- backend/services/chat.py — 思考预算与思考统计改为按 token 估算
+- backend/i18n_parts/services.py — 补充启动失败相关英文词条
+- web/static/js/i18n/en.app.js — 补充启动异常提示英文词条
+- backend/__init__.py — 版本号升至 1.0.6
+- CHANGELOG.md — 记录本次修复
+
 ## v1.0.3 (2026-10-22)
 
 ### 修复
@@ -19,9 +34,6 @@
 ## V1.1.0 — 2026-10-22
 
 **性能优化：修复 TUI 全屏仪表盘空闲时 CPU 偏高（常驻 15%~30%、风扇不停）的问题。**
-
-> 说明：按规范「性能优化与加入新功能 → 0.1 级递增」，本条目记为 V1.1.0；本次任务约束只允许修改
-> `backend/console.py`，故未在本次改动中调整 `backend/__init__.py` 的 `__version__`（其后另一次提交已升至 1.0.3）。
 
 - `backend/console.py`
   - `Dashboard.__init__`：新增 `_usage_cache`（`(写入时间戳, 今日字典, 累计字典)`）与 `_usage_ttl = 1.5`，用于缓存用量聚合结果。

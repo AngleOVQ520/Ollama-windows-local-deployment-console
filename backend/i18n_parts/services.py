@@ -9,6 +9,8 @@ TABLE = {
     "自动加载上次模型失败：%s": "Failed to auto-load the last model: %s",
     "引擎配置已变更，重启引擎…": "Engine settings changed, restarting engines…",
     "正在关闭…": "Shutting down…",
+    "后台初始化失败：%s": "Background initialization failed: %s",
+    "自动备份失败（已跳过，不影响启动）：%s": "Auto backup failed (skipped, startup unaffected): %s",
 
     # ---------------- chat（ChatService） ----------------
     "对话不存在": "Conversation not found",

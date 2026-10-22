@@ -22,6 +22,7 @@ export default {
     "已加载 · 显存 {size} · ctx {num_ctx}": "Loaded · VRAM {size} · ctx {num_ctx}",
     "无法连接后端：": "Failed to connect to backend: ",
     "模型加载失败：": "Model load failed: ",
+    "后台初始化未完成：": "Background initialization incomplete: ",
 
     // 全局提示（toast）
     "与后端的连接中断，正在重连…": "Connection to the backend was lost, reconnecting…",
@@ -36,5 +37,7 @@ export default {
     [/^无法连接后端：([\s\S]+)$/, "Failed to connect to backend: $1"],
     // 模型加载失败提示：`"模型加载失败：" + st.error`
     [/^模型加载失败：([\s\S]+)$/, "Model load failed: $1"],
+    // 启动失败提示：`"后台初始化未完成：" + b.app.boot_error`
+    [/^后台初始化未完成：([\s\S]+)$/, "Background initialization incomplete: $1"],
   ],
 };

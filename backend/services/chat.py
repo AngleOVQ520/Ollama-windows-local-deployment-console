@@ -28,6 +28,17 @@ def est_tokens(text):
     return cjk + max(0, len(text) - cjk) // 4 + 1
 
 
+_CJK_RE = re.compile(r"[\u3000-\u9fff\uac00-\ud7af\uff00-\uffef]")
+
+
+def est_tokens_delta(text):
+    """逐块累加用的估算：与 est_tokens 同口径，但不加 +1 常数。"""
+    if not text:
+        return 0
+    cjk = len(_CJK_RE.findall(text))
+    return cjk + max(0, len(text) - cjk) // 4
+
+
 class Run:
     """一次生成任务。事件写入缓冲，前端可断线重连回放。"""
 
@@ -390,6 +401,7 @@ class ChatService:
             first_tok = None
             first_content = None
             think_tokens = 0
+            content_tokens = 0
             final = None
             budget_hit = False
             resp, it = eng.client.stream("/api/chat", body, timeout=(10, 900))
@@ -409,7 +421,7 @@ class ChatService:
                         stats["ttft_ms"] = (now - t_req) * 1000
                     if th:
                         thinking_parts.append(th)
-                        think_tokens += 1
+                        think_tokens += est_tokens_delta(th)
                         run.emit("thinking", {"t": th})
                         if budget and think_tokens >= budget and not first_content:
                             budget_hit = True
@@ -418,6 +430,7 @@ class ChatService:
                         if first_content is None:
                             first_content = now
                         content_parts.append(ct)
+                        content_tokens += est_tokens_delta(ct)
                         run.emit("content", {"t": ct})
                     if d.get("done"):
                         final = d
@@ -466,6 +479,7 @@ class ChatService:
                             if first_content is None:
                                 first_content = time.time()
                             content_parts.append(ct)
+                            content_tokens += est_tokens_delta(ct)
                             run.emit("content", {"t": ct})
                         if d.get("done"):
                             d["_phase2"] = True
@@ -493,9 +507,9 @@ class ChatService:
             else:
                 # 被停止或分两段生成：根据流式块估算
                 stats["input_tokens"] = sum(est_tokens(x.get("content", "")) for x in msgs) + 4 * len(msgs)
-                out_n = think_tokens + len(content_parts)
+                out_n = think_tokens + content_tokens
                 if final and final.get("_phase2"):
-                    out_n = think_tokens + (final.get("eval_count") or len(content_parts))
+                    out_n = think_tokens + (final.get("eval_count") or content_tokens)
                     stats["done_reason"] = final.get("done_reason")
                 else:
                     stats["done_reason"] = "stop_by_user" if status == "stopped" else "aborted"

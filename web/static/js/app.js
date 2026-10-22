@@ -244,13 +244,15 @@ function sysMini(s) {
 }
 
 async function main() {
+  let b;
   try {
-    await boot();
+    b = await boot();
   } catch (e) {
     $(".boot-text").textContent = "无法连接后端：" + e.message;
     return;
   }
   shell();
+  if (b.app.boot_error) toast("后台初始化未完成：" + b.app.boot_error, "err", 8000);
   connectEvents();
   on("load", loadChip);
   on("system", sysMini);

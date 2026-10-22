@@ -241,8 +241,9 @@ class Registry:
             if not p or not os.path.isdir(p["path"]):
                 continue
             try:
-                eng = self.engines.get(p)
-                if eng.status != "running":
+                # 全局同步只处理「已运行」的引擎：peek 不创建、不启动引擎
+                eng = self.engines.peek(p["id"])
+                if eng is None or not eng.alive() or eng.status != "running":
                     continue
                 tags = eng.client.tags()
             except Exception as e:

@@ -31,6 +31,7 @@ def bootstrap():
     c = ctx()
     return ok({
         "app": {"name": APP_NAME, "version": __version__, "root": paths.ROOT, "ready": c.ready.is_set(),
+                "boot_error": c.boot_error,
                 "started_at": c.started_at, "ollama": c.ollama_exe()},
         # lang：启动入口的默认语言，「跟随启动器」的前端据此决定用中文还是英文
         "lang": i18n.get_launcher_lang(),

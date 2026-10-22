@@ -39,6 +39,7 @@ class AppContext:
         self.system = SystemMonitor(self.bus)
         self.api_server = None
         self.ready = threading.Event()
+        self.boot_error = ""
         self.config.on_change(self._on_config)
         self.stats = {"requests": 0, "api_requests": 0}
 
@@ -47,39 +48,47 @@ class AppContext:
 
     def boot(self):
         """后台初始化：启动默认分区引擎、同步模型、自动加载上次模型。"""
-        self.system.start()
-        if self.config.get("data.auto_backup"):
-            self.backup(auto=True)
-        self.usage.prune(int(self.config.get("data.usage_retention_days") or 0))
         try:
-            n = self.image.prune()
-            if n:
-                self.log.info("boot", T("已清理 %d 个过期生图任务") % n)
-        except Exception as e:
-            self.log.warn("boot", T("清理生图产物失败：%s") % e)
-        exe = self.ollama_exe()
-        if not exe:
-            self.log.error("boot", T("未找到 ollama.exe，请在 设置 → 引擎 中指定路径"))
-        else:
-            self.log.info("boot", "Ollama: %s" % exe)
-        for p in self.db.query("SELECT * FROM partitions ORDER BY sort, id"):
-            if not os.path.isdir(p["path"]):
-                self.log.warn("boot", T("分区「%s」路径不存在：%s") % (p["name"], p["path"]))
-                continue
-            has_models = os.path.isdir(os.path.join(p["path"], "manifests")) or os.path.isdir(os.path.join(p["path"], "manifests-v2"))
-            if p["is_default"] or has_models:
-                self.engines.get(p, start=True)
-        n = self.registry.sync()
-        self.log.ok("boot", T("模型同步完成（%d 项更新，共 %d 个模型）") % (n, len(self.registry.models())))
-        last = self.config.get("chat.last_model") or ""
-        if self.config.get("chat.auto_load_last") and "|" in last:
-            pid, name = last.split("|", 1)
+            self.system.start()
+            if self.config.get("data.auto_backup"):
+                try:
+                    self.backup(auto=True)
+                except Exception as e:
+                    self.log.warn("boot", T("自动备份失败（已跳过，不影响启动）：%s") % e)
+            self.usage.prune(int(self.config.get("data.usage_retention_days") or 0))
             try:
-                if self.registry.find(int(pid), name):
-                    self.loader.select(int(pid), name)
+                n = self.image.prune()
+                if n:
+                    self.log.info("boot", T("已清理 %d 个过期生图任务") % n)
             except Exception as e:
-                self.log.warn("boot", T("自动加载上次模型失败：%s") % e)
-        self.ready.set()
+                self.log.warn("boot", T("清理生图产物失败：%s") % e)
+            exe = self.ollama_exe()
+            if not exe:
+                self.log.error("boot", T("未找到 ollama.exe，请在 设置 → 引擎 中指定路径"))
+            else:
+                self.log.info("boot", "Ollama: %s" % exe)
+            for p in self.db.query("SELECT * FROM partitions ORDER BY sort, id"):
+                if not os.path.isdir(p["path"]):
+                    self.log.warn("boot", T("分区「%s」路径不存在：%s") % (p["name"], p["path"]))
+                    continue
+                has_models = os.path.isdir(os.path.join(p["path"], "manifests")) or os.path.isdir(os.path.join(p["path"], "manifests-v2"))
+                if p["is_default"] or has_models:
+                    self.engines.get(p, start=True)
+            n = self.registry.sync()
+            self.log.ok("boot", T("模型同步完成（%d 项更新，共 %d 个模型）") % (n, len(self.registry.models())))
+            last = self.config.get("chat.last_model") or ""
+            if self.config.get("chat.auto_load_last") and "|" in last:
+                pid, name = last.split("|", 1)
+                try:
+                    if self.registry.find(int(pid), name):
+                        self.loader.select(int(pid), name)
+                except Exception as e:
+                    self.log.warn("boot", T("自动加载上次模型失败：%s") % e)
+        except Exception as e:
+            self.boot_error = str(e)
+            self.log.error("boot", T("后台初始化失败：%s") % e)
+        finally:
+            self.ready.set()
 
     def _on_config(self, changed):
         eng_keys = {"keep_alive", "flash_attention", "kv_cache_type", "num_parallel", "gpu_overhead_mb", "load_timeout",
