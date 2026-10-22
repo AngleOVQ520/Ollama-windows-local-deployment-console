@@ -13,6 +13,8 @@ TABLE = {
     # ---------------- chat（ChatService） ----------------
     "对话不存在": "Conversation not found",
     "该对话正在生成中": "This conversation is already generating",
+    "另一个对话正在使用其他模型生成，请等待其结束或先停止它":
+        "Another chat is generating with a different model; wait for it to finish or stop it first",
     "请先在左下角选择模型": "Please select a model from the bottom-left first",
     "模型不存在或已被删除": "Model does not exist or has been deleted",
     "没有可重新生成的消息": "No message available to regenerate",

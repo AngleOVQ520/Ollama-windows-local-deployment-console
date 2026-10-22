@@ -43,6 +43,8 @@ DEFAULTS = {
     # 生图（stable-diffusion.cpp）：模型路径留空时自动在 models/image 中挑选
     "image": {
         "enabled": True, "diffusion_model": "", "vae": "", "llm": "", "llm_vision": "",
+        # 提示词：前端保存后必须落库（不在 DEFAULTS 里会被 sanitize 静默丢弃）
+        "prompt": "", "negative": "",
         "width": 1024, "height": 1024, "steps": 24, "cfg_scale": 4.0, "seed": -1,
         "sampling": "euler", "scheduler": "", "flow_shift": 3.0, "batch": 1,
         # 图生图专用

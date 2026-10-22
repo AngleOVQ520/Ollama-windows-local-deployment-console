@@ -682,6 +682,28 @@ function attachRun(runId, resumed) {
       loadConvs();
       if (S.conv && S.conv.title === "新对话") get(`/api/conversations/${convId}`).then((c) => { if (S.cur === convId) { S.conv.title = c.title; $("[data-title]", S.root).textContent = c.title; } });
     },
+    failed: (d) => {
+      S.live = null;
+      clearTimeout(S.renderTimer);
+      S.renderTimer = null;
+      if (S.cur !== convId) { S.streaming = false; updSend(); loadConvs(); return; }
+      // 保留已生成的内容，把流式气泡收尾为一条错误提示（沿用 msgEl 的错误样式 + notice-line）
+      el.classList.remove("streaming");
+      el.classList.add("err");
+      stage.remove();
+      if (thinkBox) {
+        thinkBox.classList.remove("live", "open");
+        $(".label", thinkBox).textContent = `已深度思考（用时 ${fmtMs(performance.now() - thinkStart)}）`;
+      }
+      if (content) renderInto(md, content);
+      md.classList.remove("cursor");
+      $(".notice-slot", el).appendChild(h(`<div class="notice-line">${icon("alert", "sm")}${esc(d.error)}</div>`));
+      S.streaming = false;
+      updSend();
+      scrollBottom();
+      toast(d.error, "err", 6000);
+      loadConvs();
+    },
   });
 }
 

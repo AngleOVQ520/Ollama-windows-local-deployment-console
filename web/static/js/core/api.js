@@ -47,6 +47,9 @@ export function streamRun(runId, handlersMap) {
   let idx = 0;
   let closed = false;
   let src = null;
+  let retries = 0;
+  const RETRY_MAX = 5;
+  const RETRY_DELAYS = [800, 1600, 3200, 5000, 5000];
   const open = () => {
     src = new EventSource(`/api/runs/${runId}/stream?from=${idx}&lang=${getLang()}`);
     for (const t of ["status", "thinking", "content", "notice", "done"]) {
@@ -57,9 +60,21 @@ export function streamRun(runId, handlersMap) {
         if (t === "done") { closed = true; src.close(); }
       });
     }
+    src.onopen = () => { retries = 0; };
     src.onerror = () => {
+      // 必须在 close() 之前读 readyState：close() 会把它改成 CLOSED(2)
+      const dead = src.readyState === EventSource.CLOSED;
       src.close();
-      if (!closed) setTimeout(() => { if (!closed) open(); }, 800);
+      if (closed) return;
+      if (dead || retries >= RETRY_MAX) {
+        // 永久失败（HTTP 非 200 / 类型不对）或超过重试上限：停止重连并通知调用方
+        closed = true;
+        handlersMap.failed?.({ error: "生成已中断（任务不存在或后端已重启）" });
+        return;
+      }
+      const delay = RETRY_DELAYS[retries] ?? 5000;
+      retries++;
+      setTimeout(() => { if (!closed) open(); }, delay);
     };
   };
   open();

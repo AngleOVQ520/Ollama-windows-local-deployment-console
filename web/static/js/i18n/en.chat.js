@@ -82,6 +82,7 @@ export default {
     "已保存": "Saved",
     "已卸载，显存已释放": "Unloaded; VRAM released",
     "生成失败": "Generation failed",
+    "生成已中断（任务不存在或后端已重启）": "Generation interrupted (task not found or the backend was restarted)",
 
     // 消息操作与统计
     "复制": "Copy",

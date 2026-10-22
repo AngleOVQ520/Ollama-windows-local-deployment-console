@@ -220,6 +220,11 @@ class ChatService:
         m = self.registry.find(pid, model)
         if not m:
             raise ValueError(T("模型不存在或已被删除"))
+        # 并发保护：loader 全局只驻留一个模型，第二个会话若用不同模型生成会卸载第一个会话正在用的模型
+        key = (pid, m["name"])
+        for ocid, orun in list(self.active.items()):
+            if ocid != cid and getattr(orun, "model_key", None) != key:
+                raise ValueError(T("另一个对话正在使用其他模型生成，请等待其结束或先停止它"))
         now = time.time()
         user_mid = None
         if payload.get("regenerate"):
@@ -246,6 +251,7 @@ class ChatService:
                 self.db.update("conversations", cid, {"title": title})
         self.db.update("conversations", cid, {"model": m["name"], "partition_id": pid, "updated_at": now})
         run = Run(cid, user_mid)
+        run.model_key = (pid, m["name"])
         self.runs[run.id] = run
         self.active[cid] = run
         self.bus.publish("convs_changed", {"id": cid})
