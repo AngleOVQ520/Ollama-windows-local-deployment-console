@@ -318,45 +318,12 @@ ollama最终兵器/
 
 ## 联系方式
 
-- **邮箱**：153538317+AngleOVQ520@users.noreply.github.com
+- **邮箱**：dvdvjvb@163.com
 
 有问题、建议或想反馈 Bug，欢迎邮件联系。
 
 ---
 
-## English Quick Start
+## 致谢
 
-**Ollama Console** — a local-first control center for Ollama: chat, partitioned model management, image generation, usage analytics and full parameter tuning.
-
-### Requirements
-
-Windows 10/11, Python 3.10+, and a local Ollama installation. An NVIDIA GPU is optional (CPU inference works too).
-
-### Run
-
-```powershell
-python app-en.py                 # English UI and English terminal dashboard
-python app-en.py --port 9000     # custom UI port
-python app-en.py --no-browser    # do not open the browser
-python APP-NO.py --lang en       # same, without auto-opening the browser
-```
-
-The browser opens at `http://127.0.0.1:8848` (default). Dependencies are installed into `runtime/pylib` on first run and never touch your system Python.
-
-### Language
-
-`app-en.py` starts both the terminal dashboard and the web UI in English. The UI language can also be changed at runtime under **Settings → Appearance → Interface language**, with three options:
-
-- **Follow launcher** — use the language of the starting entry point (`app-cn.py` → Chinese, `app-en.py` → English)
-- **中文** — always Chinese
-- **English** — always English
-
-The terminal dashboard language always follows the launcher (or `--lang`), independently of the browser.
-
-### Data
-
-Everything lives inside the project folder: `data/app.db` (SQLite, source of truth), `data/settings.json` (readable mirror), `data/images/` (generated images), `data/backups/` (automatic backups), `runtime/` (dependencies, logs, temp files). Nothing is uploaded anywhere.
-
-### Contact
-
-Email: **153538317+AngleOVQ520@users.noreply.github.com**
+- Ollama官方仓库：[https://github.com/ollama/ollama)
