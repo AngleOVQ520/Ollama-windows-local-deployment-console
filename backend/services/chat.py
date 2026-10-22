@@ -22,6 +22,30 @@ BUDGET_NOTE = "\n\n（思考预算已用尽，现在根据以上思考直接给�
 # 只把最近 N 轮用户消息里的图片带进上下文，避免历史图片随轮数线性推高 prompt tokens 与显存
 HISTORY_IMAGE_TURNS = 2
 
+# 采样参数合法范围（与前端参数浮窗一致）：保存/下发前兜底钳制，非法值不会进入引擎
+PARAM_RANGES = {
+    "temperature": (0.0, 2.0), "top_p": (0.0, 1.0), "top_k": (0, 200), "min_p": (0.0, 1.0),
+    "typical_p": (0.0, 1.0), "repeat_penalty": (0.5, 2.0), "repeat_last_n": (-1, 512),
+    "presence_penalty": (-2.0, 2.0), "frequency_penalty": (-2.0, 2.0), "mirostat": (0, 2),
+    "mirostat_tau": (0.0, 10.0), "mirostat_eta": (0.0, 1.0),
+    "num_thread": (0, 64), "num_batch": (32, 4096), "num_gpu": (-1, 200),
+}
+
+
+def clamp_param(key, value):
+    """按 PARAM_RANGES 钳制参数；无法解析时返回 None（交给调用方回退默认）。"""
+    rng = PARAM_RANGES.get(key)
+    if rng is None:
+        return value
+    try:
+        v = float(value)
+    except (TypeError, ValueError):
+        return None
+    lo, hi = rng
+    if isinstance(lo, int) and isinstance(hi, int):
+        return int(min(hi, max(lo, int(v))))
+    return min(hi, max(lo, v))
+
 
 def est_tokens(text):
     """粗略估算 token：CJK 每字约 1 token，其余约 4 字符 1 token。"""
@@ -335,6 +359,12 @@ class ChatService:
 
     def _options(self, m, payload, ctx):
         p = dict(self.config.section("params"), **(payload.get("params") or {}))
+        # 兜底：无论来自设置还是请求，参数都先钳制到合法范围，非法值回退默认
+        defaults = self.config.section("params")
+        for k in PARAM_RANGES:
+            if p.get(k) is not None:
+                cv = clamp_param(k, p[k])
+                p[k] = cv if cv is not None else defaults.get(k, p[k])
         opts = {}
         if not p.get("use_model_defaults"):
             for k in ("temperature", "top_p", "top_k", "min_p", "typical_p", "repeat_penalty", "repeat_last_n",
@@ -390,6 +420,10 @@ class ChatService:
         try:
             run.emit("status", {"stage": "loading", "text": T("正在准备模型…")})
             self.loader.ensure_loaded(m["partition_id"], m["name"])
+            # 记录生成开始时的 MTP 探测结果，随本条回复持久化（之后切换模型不影响历史消息）
+            mtp_state = (self.loader.state.mtp if getattr(self.loader, "state", None) else None) or {}
+            stats["mtp_detected"] = bool(mtp_state.get("detected"))
+            stats["mtp_evidence"] = mtp_state.get("evidence") or ""
             msgs, ctx, truncated = self._build_messages(conv, run, m, payload)
             if truncated:
                 run.emit("notice", {"text": T("已按最大输入限制省略 %d 条较早的消息") % truncated})

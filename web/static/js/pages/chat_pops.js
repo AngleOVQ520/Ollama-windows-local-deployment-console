@@ -1,7 +1,7 @@
 // 首页输入框的四个悬浮窗：模型切换、上下文控制、模型参数、深度思考
-import { patch, post } from "../core/api.js";
+import { on, patch, post } from "../core/api.js";
 import { icon } from "../core/icons.js";
-import { findModel, refreshGroups, saveSettings, setting, store } from "../core/store.js";
+import { findModel, refreshGroups, saveSettings, setting, store, clampNum, ctxLimit } from "../core/store.js";
 import { $, $$, esc, fmtBytes, fmtCtx, fmtParams, h, popover, rangeFill, toast, toastErr } from "../core/ui.js";
 
 export const THINK_META = {
@@ -70,13 +70,26 @@ function numRow({ label, tip, min, max, step, value, onChange, fmt }) {
     <input class="input" type="number" min="${min}" max="${max}" step="${step}" value="${value}"><input class="range" type="range" min="${min}" max="${max}" step="${step}" value="${value}"></div>`);
   const [num, rng] = [$("input[type=number]", row), $("input[type=range]", row)];
   const upd = rangeFill(rng);
+  // 手动输入同样钳制到 [min, max]，越界时回写输入框并提示，避免非法值进入引擎
+  const clamp = (raw, notify) => {
+    let v = +raw;
+    if (isNaN(v)) v = +rng.min;
+    const c = clampNum(v, +rng.min, +rng.max);
+    if (notify && c !== v && String(raw).trim() !== "") toast(`${label} 已限制在 ${fmt ? fmt(c) : `${min} ~ ${max}`}`, "warn");
+    return c;
+  };
   rng.oninput = () => { num.value = rng.value; upd(); onChange(+rng.value); };
   num.onchange = () => {
-    let v = +num.value;
-    if (isNaN(v)) v = +rng.min;
+    const v = clamp(num.value, true);
+    num.value = v;
     rng.value = v;
     upd();
     onChange(v);
+  };
+  // 范围随模型/设置动态变化时同步更新上下限（不传 step 则保留原步进）
+  row.setRange = (lo, hi) => {
+    for (const el of [num, rng]) { el.min = lo; el.max = hi; }
+    upd();
   };
   row.setValue = (v) => { num.value = v; rng.value = v; upd(); };
   return row;
@@ -88,7 +101,8 @@ export function openContextPop(anchor, onChange) {
   const ld = store.load;
   const m = ld.model ? findModel(ld.partition_id, ld.model) : null;
   const modelMax = m?.context_length || 0;
-  const maxCtx = Math.max(131072, modelMax ? Math.min(modelMax, 1048576) : 131072);
+  // 上限取模型声明的上下文（不超过 1M）；模型未知时才回退到 128K
+  const maxCtx = ctxLimit(ld.partition_id, ld.model);
   const box = h(`<div class="pp"><div class="pop-title">${icon("layers")}上下文控制<span class="tag" style="margin-left:auto">${modelMax ? "模型上限 " + fmtCtx(modelMax) : "未知上限"}</span></div></div>`);
   const presets = h(`<div class="row wrap" style="gap:5px;margin-bottom:12px"></div>`);
   [2048, 4096, 8192, 16384, 32768, 65536, 131072].filter((v) => !modelMax || v <= modelMax).forEach((v) => {
@@ -99,16 +113,45 @@ export function openContextPop(anchor, onChange) {
   const set = (patch) => {
     saveSettings({ context: patch });
     onChange?.();
-    if (patch.num_ctx) $(".warn-ctx", box).classList.toggle("hidden", !(ld.status === "loaded" && ld.num_ctx !== patch.num_ctx));
+    // c 是浮窗打开时的快照，需同步本地，后续比较才准确
+    Object.assign(c, patch);
+    if (patch.num_ctx) $(".warn-ctx", box).classList.toggle("hidden", !(ld.status === "loaded" && ld.num_ctx !== c.num_ctx));
   };
-  const ctxRow = numRow({ label: "上下文窗口 num_ctx", tip: "模型一次能看到的总 token 数（输入 + 输出），越大越占显存", min: 512, max: maxCtx, step: 512, value: c.num_ctx, onChange: (v) => set({ num_ctx: v }) });
+  const ctxRow = numRow({ label: "上下文窗口 num_ctx", tip: "模型一次能看到的总 token 数（输入 + 输出），越大越占显存", min: 512, max: maxCtx, step: 512, value: c.num_ctx, onChange: (v) => set({ num_ctx: v }), fmt: fmtCtx });
   const inRow = numRow({ label: "最大输入 tokens", tip: "发送前按此限制裁剪较早的历史消息，0 表示不限制", min: 0, max: maxCtx, step: 256, value: c.max_input, onChange: (v) => set({ max_input: v }) });
   const outRow = numRow({ label: "最大输出 tokens", tip: "num_predict：单次回复的最大长度（包含思考），0 表示不限制", min: 0, max: 65536, step: 128, value: c.max_output, onChange: (v) => set({ max_output: v }) });
   const histRow = numRow({ label: "保留历史轮数", tip: "只携带最近 N 轮对话，0 表示全部", min: 0, max: 100, step: 1, value: c.history_turns, onChange: (v) => set({ history_turns: v }) });
+  // 已保存的值可能超过当前模型上限（例如换到 4K 模型）：显示时即钳制并同步，避免滑块/输入框越界
+  const ctxV = clampNum(c.num_ctx, 512, maxCtx);
+  if (ctxV !== c.num_ctx) {
+    ctxRow.setValue(ctxV);
+    set({ num_ctx: ctxV });
+    toast(`当前模型上限为 ${fmtCtx(maxCtx)}，上下文窗口已限制为 ${fmtCtx(ctxV)}`, "warn", 4000);
+  }
+  const inV = clampNum(c.max_input, 0, maxCtx);
+  if (inV !== c.max_input) { inRow.setValue(inV); set({ max_input: inV }); }
+  // 浮窗打开期间切换了模型：同步缩小上限，并把超出的值钳制掉
+  const syncRange = () => {
+    const lim = ctxLimit(store.load.partition_id, store.load.model);
+    if (lim === maxCtx) return;
+    maxCtx = lim;
+    for (const [row, lo] of [[ctxRow, 512], [inRow, 0]]) {
+      row.setRange(lo, maxCtx);
+      const v = clampNum(row.querySelector("input[type=number]").value, lo, maxCtx);
+      if (String(v) !== row.querySelector("input[type=number]").value) {
+        row.setValue(v);
+        const key = row === ctxRow ? "num_ctx" : "max_input";
+        set({ [key]: v });
+        toast(`模型上限为 ${fmtCtx(maxCtx)}，已限制为 ${fmtCtx(v)}`, "warn", 4000);
+      }
+    }
+  };
+  const unsub = on("load", () => syncRange());
   box.append(presets, ctxRow, inRow, outRow, histRow,
     h(`<div class="hint warn-ctx ${ld.status === "loaded" && ld.num_ctx !== c.num_ctx ? "" : "hidden"}" style="color:var(--warn)">${icon("info", "sm")} 上下文窗口变更将在下次发送时自动重新加载模型</div>`),
     h(`<div class="hint">当前已加载：${ld.status === "loaded" ? fmtCtx(ld.num_ctx) + " tokens" : "—"}</div>`));
-  return popover(anchor, box, { place: "top", align: "end" });
+  const p = popover(anchor, box, { place: "top", align: "end", onClose: () => unsub() });
+  return p;
 }
 
 // ---------------- 模型参数 ----------------
@@ -143,6 +186,8 @@ const PARAM_PRESETS = {
   "创意": { temperature: 1.1, top_p: 0.95, top_k: 80, repeat_penalty: 1.05 },
   "代码": { temperature: 0.1, top_p: 0.9, top_k: 30, repeat_penalty: 1.0 },
 };
+// 各参数合法范围（由 PARAM_DEF 派生，供预设按钮钳制用）
+const PARAM_RANGE = Object.fromEntries(PARAM_DEF.flatMap(([, defs]) => defs.map(([k, , min, max]) => [k, [min, max]])));
 
 export function openParamsPop(anchor, onChange) {
   const p = setting("params");
@@ -151,7 +196,17 @@ export function openParamsPop(anchor, onChange) {
   const rows = {};
   for (const [name, vals] of Object.entries(PARAM_PRESETS)) {
     const b = h(`<button class="chip">${name}</button>`);
-    b.onclick = () => { for (const [k, v] of Object.entries(vals)) rows[k]?.setValue(v); saveSettings({ params: vals }); onChange?.(); };
+    b.onclick = () => {
+      // 预设值同样按各行范围钳制，避免与手动输入的取值范围不一致
+      const out = {};
+      for (const [k, v] of Object.entries(vals)) {
+        const def = PARAM_RANGE[k];
+        out[k] = def ? clampNum(v, def[0], def[1]) : v;
+        rows[k]?.setValue(out[k]);
+      }
+      saveSettings({ params: out });
+      onChange?.();
+    };
     pre.appendChild(b);
   }
   const useDef = h(`<label class="row" style="justify-content:space-between;margin:6px 0 4px;font-size:12.5px"><span class="muted">使用模型自带默认参数（忽略下方采样设置）</span><span class="switch"><input type="checkbox" ${p.use_model_defaults ? "checked" : ""}><span></span></span></label>`);
@@ -192,7 +247,14 @@ export function openParamsPop(anchor, onChange) {
   }
   box.appendChild(h(`<div class="pp-sec">其他</div>`));
   const seedRow = h(`<div class="pp-row"><label data-tip="固定种子可复现输出，-1 为随机">随机种子 seed ${icon("info", "sm")}</label><input class="input" type="number" value="${p.seed}"></div>`);
-  $("input", seedRow).onchange = (e) => { saveSettings({ params: { seed: parseInt(e.target.value) || -1 } }); onChange?.(); };
+  $("input", seedRow).onchange = (e) => {
+    // 种子：留空或非法时视为随机（-1），负数同样归为 -1
+    const raw = e.target.value.trim();
+    const seed = raw === "" || !Number.isFinite(+raw) ? -1 : Math.max(-1, Math.trunc(+raw));
+    e.target.value = seed;
+    saveSettings({ params: { seed } });
+    onChange?.();
+  };
   const stopRow = h(`<div class="field" style="margin-bottom:6px"><label class="label">停止词（逗号分隔）</label><input class="input sm" value="${esc((p.stop || []).join(","))}" placeholder="例如：<|end|>,###"></div>`);
   $("input", stopRow).onchange = (e) => { saveSettings({ params: { stop: e.target.value.split(",").map((s) => s.trim()).filter(Boolean) } }); onChange?.(); };
   box.append(seedRow, stopRow);

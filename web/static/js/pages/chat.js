@@ -515,9 +515,9 @@ function statsHtml(s) {
   if (s.done_reason === "length") extra += `<span class="st warn">${icon("alert")}达到输出上限</span>`;
   if (s.done_reason === "stop_by_user") extra += `<span class="st warn">${icon("stop")}已手动停止</span>`;
   if (s.truncated) extra += `<span class="st warn">${icon("filter")}已省略 ${s.truncated} 条历史</span>`;
-  // MTP / 推测解码状态：只在探测到明确证据时显示，未探测到不显示（避免误导）
-  const mtp = store.load.mtp;
-  if (mtp && mtp.detected) extra += `<span class="st ok" data-tip="${esc(mtp.evidence || "")}">${icon("zap")}MTP 加速中</span>`;
+  // MTP / 推测解码状态：读这条消息自己生成时记录的探测结果，
+  // 只在探测到明确证据时显示；旧消息没有该字段则不显示（避免误导）
+  if (s.mtp_detected) extra += `<span class="st ok" data-tip="${esc(s.mtp_evidence || "")}">${icon("zap")}MTP 加速中</span>`;
   return `<div class="stats">${items.map(([ic, k, v]) => `<span class="st" data-tip="${k}">${icon(ic)}${k} <b>${v}</b></span>`).join("")}${extra}</div>`;
 }
 

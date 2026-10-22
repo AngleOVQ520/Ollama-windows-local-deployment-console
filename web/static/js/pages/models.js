@@ -4,7 +4,7 @@ import { icon } from "../core/icons.js";
 import { refreshGroups, store } from "../core/store.js";
 import { $, $$, confirmBox, copyText, debounce, esc, fmtBytes, fmtCtx, fmtNum, fmtParams, fmtTime, h, menu, modal, promptBox, toast, toastErr } from "../core/ui.js";
 
-const S = { models: [], parts: [], cats: [], part: 0, cat: "", q: "", sort: "added_at", desc: true, running: [], sig: "", ldSig: "" };
+const S = { models: [], parts: [], cats: [], part: 0, cat: "", q: "", sort: "added_at", desc: true, running: [], sig: "", ldSig: "", loadSig: "", ldTimer: null };
 const CAP = { vision: ["vision", "视觉"], tools: ["tool", "工具"], thinking: ["brain", "思考"], embedding: ["layers", "向量"], completion: null };
 const COLS = [
   ["remark", "备注名称"], ["name", "模型 ID"], ["display_category", "类别"], ["added_at", "添加时间"],
@@ -37,7 +37,16 @@ export function mount(root) {
   };
   load();
   on("models_changed", debounce(load, 300));
-  on("load", () => render());
+  // 加载事件每秒约 6~7 次（纯进度更新占多数）：只有「加载状态 / 模型 / 分区」变化时才重建表格，
+  // 否则会整表重建导致闪烁、滚动跳动、正在编辑的备注输入框被销毁
+  on("load", (st) => {
+    if (!S.root) return;
+    const sig = `${st.partition_id}|${st.model}|${st.status}|${st.pending?.model || ""}`;
+    if (sig === S.loadSig) return;
+    S.loadSig = sig;
+    clearTimeout(S.ldTimer);
+    S.ldTimer = setTimeout(() => load(), 500);
+  });
 }
 export function onShow() { if (S.root) load(); }
 
