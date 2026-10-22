@@ -312,6 +312,7 @@ ollama最终兵器/
 ## 版本
 
 版本历史与每次变更详见 [CHANGELOG.md](CHANGELOG.md)。
+当前版本为 v1.1.9 。
 
 ---
 

@@ -21,7 +21,6 @@ __pycache__/
 *.py[cod]
 *$py.class
 .trae/
-.trae-html-share-packages/
 .vscode/
 .idea/
 *.swp
