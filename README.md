@@ -311,13 +311,13 @@ ollama最终兵器/
 
 ## 版本
 
-`v1.0.0` · 后端接口见 `backend/__init__.py`
+版本历史与每次变更详见 [CHANGELOG.md](CHANGELOG.md)。
 
 ---
 
 ## 联系方式
 
-- **邮箱**：dvdvjvb@163.com
+- **邮箱**：153538317+AngleOVQ520@users.noreply.github.com
 
 有问题、建议或想反馈 Bug，欢迎邮件联系。
 
@@ -358,4 +358,4 @@ Everything lives inside the project folder: `data/app.db` (SQLite, source of tru
 
 ### Contact
 
-Email: **dvdvjvb@163.com**
+Email: **153538317+AngleOVQ520@users.noreply.github.com**

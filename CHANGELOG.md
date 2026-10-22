@@ -4,7 +4,7 @@
 
 ---
 
-## v1.0.6 (2026-10-22)
+## v1.1.6 (2026-10-22)
 
 **缺陷修复：全局同步不再拉起空 / 离线分区的引擎；后台初始化（boot）增加异常兜底并向前端提示失败原因；思考预算与思考统计由「流式块数」改为按 token 估算。**
 
@@ -16,10 +16,10 @@
 - backend/services/chat.py — 思考预算与思考统计改为按 token 估算
 - backend/i18n_parts/services.py — 补充启动失败相关英文词条
 - web/static/js/i18n/en.app.js — 补充启动异常提示英文词条
-- backend/__init__.py — 版本号升至 1.0.6
+- backend/__init__.py — 版本号升至 1.1.6
 - CHANGELOG.md — 记录本次修复
 
-## v1.0.3 (2026-10-22)
+## v1.1.3 (2026-10-22)
 
 ### 修复
 - backend/core/config.py — 补登记生图提示词与反向提示词字段，避免保存后被静默丢弃
@@ -28,12 +28,12 @@
 - web/static/js/pages/chat.js — 生成中断时收尾气泡提示并恢复发送按钮
 - backend/i18n_parts/services.py — 补充并发互斥提示的英文词条
 - web/static/js/i18n/en.chat.js — 补充生成中断提示的英文词条
-- backend/__init__.py — 版本号升至 1.0.3
+- backend/__init__.py — 版本号升至 1.1.3
 - CHANGELOG.md — 记录本次修复
 
 ## V1.1.0 — 2026-10-22
 
-**性能优化：修复 TUI 全屏仪表盘空闲时 CPU 偏高（常驻 15%~30%、风扇不停）的问题。**
+**性能优化：修复 TUI 全屏仪表盘空闲时 CPU 偏高的问题。**
 
 - `backend/console.py`
   - `Dashboard.__init__`：新增 `_usage_cache`（`(写入时间戳, 今日字典, 累计字典)`）与 `_usage_ttl = 1.5`，用于缓存用量聚合结果。

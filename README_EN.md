@@ -310,13 +310,13 @@ The front end is **vanilla ES modules with no build step** — just refresh afte
 
 ## Version
 
-`v1.0.0` · Backend API version in `backend/__init__.py`
+Version history and per-change details are in [CHANGELOG.md](CHANGELOG.md).
 
 ---
 
 ## Contact
 
-- **Email**: dvdvjvb@163.com
+- **Email**: 153538317+AngleOVQ520@users.noreply.github.com
 
 Questions, suggestions or bug reports are welcome by email.
 
@@ -357,4 +357,4 @@ python APP-NO.py --lang zh       # 同上，但不自动打开浏览器
 
 ### 联系方式
 
-邮箱：**dvdvjvb@163.com**
+邮箱：**153538317+AngleOVQ520@users.noreply.github.com**
