@@ -2,11 +2,16 @@
 import os
 import re
 import time
+from concurrent.futures import ThreadPoolExecutor
 
 from .. import paths
 from ..core import gguf
 from ..core.db import jdumps, jloads
+from ..core.ollama_client import OllamaError
 from ..i18n import T
+
+# 同步时并发调用引擎 /api/show 的并发度上限
+SYNC_SHOW_WORKERS = 4
 
 CATEGORY_RULES = [
     ("DeepSeek", r"deepseek"), ("千问 Qwen", r"qwen|qwq|qvq"), ("Llama", r"llama|codellama"),
@@ -171,8 +176,16 @@ class Registry:
         self.bus.publish("models_changed", {"partition_id": pid})
 
     # ---------------- 模型 ----------------
+    # 列表只取展示所需列；meta_json 只截取 MTP 片段（模板/许可证/模型信息等大字段留给详情接口）
+    MODEL_LIST_COLS = """m.id, m.partition_id, m.name, m.remark, m.category, m.category_auto, m.family, m.arch,
+        m.params, m.params_label, m.quant, m.size, m.context_length, m.capabilities, m.digest, m.source,
+        m.added_at, m.modified_at, m.favorite, m.has_mtp, m.mtp_enabled,
+        json_extract(m.meta_json, '$.mtp.tensors') mtp_tensors,
+        json_extract(m.meta_json, '$.mtp.layers') mtp_layers"""
+
     def models(self, partition_id=None):
-        sql = "SELECT m.*, p.name partition_name, p.color partition_color FROM models m JOIN partitions p ON p.id=m.partition_id WHERE m.present=1"
+        sql = ("SELECT %s, p.name partition_name, p.color partition_color FROM models m "
+               "JOIN partitions p ON p.id=m.partition_id WHERE m.present=1" % self.MODEL_LIST_COLS)
         args = []
         if partition_id:
             sql += " AND m.partition_id=?"
@@ -181,11 +194,8 @@ class Registry:
         rows = self.db.query(sql, args)
         for r in rows:
             r["capabilities"] = jloads(r["capabilities"], [])
-            r["thinking_values"] = jloads(r["thinking_values"], None)
-            meta = jloads(r.pop("meta_json"), {})
-            mtp = meta.get("mtp") or {}
-            r["mtp_tensor_count"] = mtp.get("tensors") or 0
-            r["mtp_layers"] = mtp.get("layers")
+            r["mtp_tensor_count"] = r.pop("mtp_tensors") or 0
+            r["mtp_layers"] = r.pop("mtp_layers")
             r["display_category"] = r["category"] or r["category_auto"] or "其他"
         return rows
 
@@ -250,26 +260,64 @@ class Registry:
                 self.log.warn("registry", T("同步分区「%s」失败: %s") % (p["name"], e))
                 continue
             names = set()
+            todo = []
             for t in tags:
                 names.add(t["name"])
                 exist = self.db.one("SELECT * FROM models WHERE partition_id=? AND name=?", (p["id"], t["name"]))
                 if exist and exist["present"] and exist["digest"] == t.get("digest") and not deep and exist["arch"]:
                     continue
-                self._upsert_from_engine(p, eng, t, exist)
-                total += 1
+                todo.append((t, exist))
+            if todo:
+                total += self._upsert_batch(p, eng, todo)
             for r in self.db.query("SELECT id, name FROM models WHERE partition_id=? AND present=1", (p["id"],)):
                 if r["name"] not in names:
                     self.db.execute("UPDATE models SET present=0 WHERE id=?", (r["id"],))
         self.bus.publish("models_changed", {})
         return total
 
-    def _upsert_from_engine(self, p, eng, tag, exist, source=None, source_path=None, extra=None):
+    @staticmethod
+    def _load_show(eng, tag):
+        """线程池任务：取单个模型的 /api/show（失败只降级为空，不抛异常）。"""
+        try:
+            return eng.client.show(tag["name"])
+        except OllamaError as e:
+            # 404 等 HTTP 错误是确定的结果，不再为此读取 GGUF
+            return {"__error__": e.status}
+        except Exception:
+            return {}
+
+    def _upsert_batch(self, p, eng, todo):
+        """并发拉取各模型 show 信息（≤4 并发），再串行写库。返回成功写入的数量。"""
+        n = len(todo)
+        self.log.info("registry", T("[1/2] 同步分区「%s」：%d 个模型待更新，并发拉取元数据…") % (p["name"], n))
+        shows = [{}] * n
+        if n == 1:
+            shows[0] = self._load_show(eng, todo[0][0])
+        else:
+            with ThreadPoolExecutor(max_workers=min(SYNC_SHOW_WORKERS, n), thread_name_prefix="sync") as pool:
+                for i, s in enumerate(pool.map(lambda it: self._load_show(eng, it[0]), todo)):
+                    shows[i] = s
+        done = 0
+        self.log.info("registry", T("[2/2] 写入数据库：%d 个模型") % n)
+        for i, (t, exist) in enumerate(todo, 1):
+            try:
+                self._upsert_from_engine(p, eng, t, exist, show=shows[i - 1])
+                done += 1
+            except Exception as e:
+                self.log.warn("registry", T("同步模型 %s 失败（已跳过）: %s") % (t["name"], e))
+            if i % 10 == 0 and i < n:
+                self.log.info("registry", T("同步分区「%s」进度 %d/%d") % (p["name"], i, n))
+        if done != n:
+            self.log.warn("registry", T("同步分区「%s」完成：%d/%d 个模型更新成功") % (p["name"], done, n))
+        else:
+            self.log.ok("registry", T("同步分区「%s」完成：%d 个模型") % (p["name"], done))
+        return done
+
+    def _upsert_from_engine(self, p, eng, tag, exist, source=None, source_path=None, extra=None, show=None):
         name = tag["name"]
         details = tag.get("details") or {}
-        try:
-            show = eng.client.show(name)
-        except Exception:
-            show = {}
+        if show is None:
+            show = self._load_show(eng, tag)
         mi = show.get("model_info") or {}
         arch = mi.get("general.architecture") or details.get("family") or ""
         ctx = mi.get("%s.context_length" % arch) if arch else None
@@ -281,7 +329,10 @@ class Registry:
             if line.startswith("FROM ") and "blobs" in line:
                 blob = line[5:].strip()
                 break
-        if blob and os.path.isfile(blob) and (not params or ctx is None or True):
+        # 参数与上下文已由 show 接口给出时无需再解析 GGUF 张量表（MTP 片段优先取库里已有结果）
+        old_mtp = (jloads(exist["meta_json"], {}) or {}).get("mtp") or {} if exist else {}
+        need_gguf = bool(blob) and os.path.isfile(blob) and (not params or ctx is None)
+        if need_gguf:
             try:
                 s = gguf.summarize(gguf.read_gguf(blob))
                 params = params or s["param_count"]
@@ -291,8 +342,11 @@ class Registry:
         else:
             s = {}
         # MTP 识别：GGUF 里有 mtp.*/nextn.* 张量或显式元数据键；引擎 /api/show 也可能上报
+        # 未解析 GGUF 时沿用库里已识别的 MTP 结果，避免每次同步丢掉 MTP 标记
         mtp_tensors = (s or {}).get("mtp_tensor_count") or 0
         mtp_layers = (s or {}).get("mtp_layers")
+        if not mtp_tensors and not mtp_layers and (old_mtp.get("tensors") or old_mtp.get("layers")):
+            mtp_tensors, mtp_layers = old_mtp.get("tensors") or 0, old_mtp.get("layers")
         if not mtp_tensors:
             mtp_keys = [k for k in mi if "nextn" in k.lower() or "mtp" in k.lower()]
             mtp_layers = mtp_layers or next((mi[k] for k in mtp_keys if isinstance(mi[k], int)), None)

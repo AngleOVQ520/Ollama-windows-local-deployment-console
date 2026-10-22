@@ -73,8 +73,10 @@ class Engine:
             "OLLAMA_LOAD_TIMEOUT": cfg.get("load_timeout") or "5m",
             "OLLAMA_FLASH_ATTENTION": "1" if cfg.get("flash_attention") else "0",
             "OLLAMA_KV_CACHE_TYPE": cfg.get("kv_cache_type") or "f16",
-            "OLLAMA_ORIGINS": "*",
         })
+        # 不设置 OLLAMA_ORIGINS：保持 Ollama 默认（只允许本机来源），
+        # 浏览器侧全部经 Flask 代理访问，任意网页不能跨域直读本机引擎端口。
+        env.pop("OLLAMA_ORIGINS", None)
         if cfg.get("no_cloud"):
             env["OLLAMA_NO_CLOUD"] = "1"
         if cfg.get("sched_spread"):
@@ -103,6 +105,9 @@ class Engine:
         with self._lock:
             if self.alive() and self.status == "running":
                 return True
+            elif self.alive():
+                # 旧进程仍存活（如上次就绪等待超时）：先停掉，保证同一时刻只有一个引擎进程
+                self.stop()
             exe = find_ollama(self.m.config.get("engine.ollama_path"))
             if not exe:
                 self.status, self.error = "error", T("未找到 ollama.exe，请在设置中指定路径")
@@ -131,6 +136,8 @@ class Engine:
     def _wait_ready(self, timeout=40):
         t0 = time.time()
         while time.time() - t0 < timeout:
+            if self.status == "running":
+                return True
             if not self.alive():
                 self.status = "error"
                 self.error = T("引擎进程意外退出（详见 runtime/logs/engine-p%d.log）") % self.pid_
@@ -140,6 +147,7 @@ class Engine:
             try:
                 self.version = self.client.version(timeout=1)
                 self.status = "running"
+                self.error = ""
                 self.m.log.ok("engine", T("分区「%s」引擎就绪 :%d  v%s") % (self.name, self.port, self.version))
                 self.m.publish()
                 return True
